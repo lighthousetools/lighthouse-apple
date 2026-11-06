@@ -1,0 +1,2 @@
+// Copy to Local.xcconfig and enter your Apple team ID. The file stays out of git.
+DEVELOPMENT_TEAM =

@@ -1,0 +1,68 @@
+name: Lighthouse
+options:
+  bundleIdPrefix: tools.lighthouse
+  deploymentTarget:
+    iOS: "26.0"
+    macOS: "26.0"
+configFiles:
+  Debug: Local.xcconfig
+  Release: Local.xcconfig
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+packages:
+  LighthouseKit:
+    path: Packages/LighthouseKit
+targets:
+  Lighthouse:
+    type: application
+    platform: iOS
+    sources: [Apps/iOS]
+    dependencies:
+      - package: LighthouseKit
+        product: LighthouseKit
+      - package: LighthouseKit
+        product: LighthouseUI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: tools.lighthouse.app
+        TARGETED_DEVICE_FAMILY: "1,2"
+    info:
+      path: Apps/iOS/Info.plist
+      properties:
+        CFBundleDisplayName: Lighthouse
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        NSLocalNetworkUsageDescription: Lighthouse connects to your own server on this network.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+  LighthouseMac:
+    type: application
+    platform: macOS
+    sources: [Apps/Mac]
+    dependencies:
+      - package: LighthouseKit
+        product: LighthouseKit
+      - package: LighthouseKit
+        product: LighthouseUI
+    settings:
+      base:
+        PRODUCT_NAME: Lighthouse
+        PRODUCT_BUNDLE_IDENTIFIER: tools.lighthouse.mac
+        ENABLE_HARDENED_RUNTIME: true
+    entitlements:
+      path: Apps/Mac/Lighthouse.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+    info:
+      path: Apps/Mac/Info.plist
+      properties:
+        CFBundleDisplayName: Lighthouse
+        LSUIElement: false
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
