@@ -21,6 +21,40 @@ private struct ServerError: Decodable {
     let error: String
 }
 
+/// One server-sent event.
+public struct ServerEvent: Sendable, Equatable {
+    public let name: String
+    public let data: String
+}
+
+/// A step of a streamed answer.
+public enum AskEvent: Sendable, Equatable {
+    case delta(String)
+    case done(AskAnswer)
+}
+
+/// Collects the lines of server-sent events.
+struct EventParser {
+    private var name = ""
+    private var data = ""
+
+    mutating func feed(_ line: String) -> ServerEvent? {
+        if line.isEmpty {
+            defer {
+                name = ""
+                data = ""
+            }
+            return name.isEmpty ? nil : ServerEvent(name: name, data: data)
+        }
+        if line.hasPrefix("event:") {
+            name = line.dropFirst(6).trimmingCharacters(in: .whitespaces)
+        } else if line.hasPrefix("data:") {
+            data += line.dropFirst(5).trimmingCharacters(in: .whitespaces)
+        }
+        return nil
+    }
+}
+
 /// Parses the server's dates, which carry up to nine fractional digits.
 enum ServerDate {
     static func parse(_ text: String) -> Date? {
@@ -73,10 +107,10 @@ public struct Client: Sendable {
         return decoder
     }
 
-    private func data(
+    private func request(
         _ method: String, _ path: String, query: [URLQueryItem] = [], body: Data? = nil,
         contentType: String = "application/json"
-    ) async throws -> Data {
+    ) -> URLRequest {
         var url = baseURL.appending(path: path)
         if !query.isEmpty { url.append(queryItems: query) }
         var request = URLRequest(url: url)
@@ -86,7 +120,10 @@ public struct Client: Sendable {
             request.httpBody = body
             request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
-        let (data, response) = try await session.data(for: request)
+        return request
+    }
+
+    private func check(_ response: URLResponse, _ data: Data) throws {
         guard let http = response as? HTTPURLResponse else { throw ClientError.unreadableAnswer }
         if http.statusCode == 401, token != nil { throw ClientError.unauthorized }
         guard (200..<300).contains(http.statusCode) else {
@@ -94,7 +131,88 @@ public struct Client: Sendable {
             throw ClientError.server(
                 status: http.statusCode, message: message ?? "The server answered \(http.statusCode).")
         }
+    }
+
+    private func data(
+        _ method: String, _ path: String, query: [URLQueryItem] = [], body: Data? = nil,
+        contentType: String = "application/json"
+    ) async throws -> Data {
+        let request = request(method, path, query: query, body: body, contentType: contentType)
+        let (data, response) = try await session.data(for: request)
+        try check(response, data)
         return data
+    }
+
+    /// Reads server-sent events from a request.
+    private func events(of base: URLRequest) -> AsyncThrowingStream<ServerEvent, Error> {
+        var timed = base
+        timed.timeoutInterval = 3600
+        let request = timed
+        let session = self.session
+        let client = self
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let (bytes, response) = try await session.bytes(for: request)
+                    try client.check(response, Data())
+                    var parser = EventParser()
+                    var line: [UInt8] = []
+                    for try await byte in bytes {
+                        if byte == UInt8(ascii: "\n") {
+                            let text = String(decoding: line, as: UTF8.self)
+                            line.removeAll(keepingCapacity: true)
+                            if let event = parser.feed(text) { continuation.yield(event) }
+                        } else if byte != UInt8(ascii: "\r") {
+                            line.append(byte)
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// Tells when something the apps show has changed.
+    public func changes() -> AsyncThrowingStream<ServerEvent, Error> {
+        events(of: request("GET", "events"))
+    }
+
+    /// Asks the Brain and delivers the answer as it arrives.
+    public func askStream(_ question: String) throws -> AsyncThrowingStream<AskEvent, Error> {
+        let body = try JSONEncoder().encode(Question(question: question))
+        let stream = events(of: request("POST", "brain/ask/stream", body: body))
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await event in stream {
+                        if let parsed = try Self.askEvent(event) { continuation.yield(parsed) }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    private struct Delta: Decodable {
+        let text: String
+    }
+
+    static func askEvent(_ event: ServerEvent) throws -> AskEvent? {
+        let data = Data(event.data.utf8)
+        switch event.name {
+        case "delta": return .delta(try decoder.decode(Delta.self, from: data).text)
+        case "done": return .done(try decoder.decode(AskAnswer.self, from: data))
+        case "failed":
+            let failure = try decoder.decode(ServerError.self, from: data)
+            throw ClientError.server(status: 502, message: failure.error)
+        default: return nil
+        }
     }
 
     private func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {
@@ -174,6 +292,17 @@ public struct Client: Sendable {
         let id: UUID
     }
 
+    /// Decides many proposals at once.
+    public func decide(approvals ids: [UUID], approve: Bool) async throws {
+        struct Batch: Encodable {
+            let ids: [UUID]
+            let approve: Bool
+        }
+        _ = try await data(
+            "POST", "approvals/decisions",
+            body: try JSONEncoder().encode(Batch(ids: ids, approve: approve)))
+    }
+
     public func decide(approval id: UUID, approve: Bool) async throws {
         _ = try await data(
             "POST", "approvals/\(id.uuidString.lowercased())/decision",
@@ -204,6 +333,15 @@ public struct Client: Sendable {
         let hits: [SearchHit] = try await get(
             "brain/search", query: [URLQueryItem(name: "q", value: text)])
         return hits.map(\.entry)
+    }
+
+    public func resolve(title: String) async throws -> UUID {
+        struct Resolved: Decodable {
+            let id: UUID
+        }
+        let resolved: Resolved = try await get(
+            "brain/resolve", query: [URLQueryItem(name: "title", value: title)])
+        return resolved.id
     }
 
     public func entry(_ id: UUID) async throws -> EntryDetail {

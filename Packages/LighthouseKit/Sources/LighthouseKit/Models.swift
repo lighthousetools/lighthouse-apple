@@ -38,6 +38,28 @@ public enum JSONValue: Sendable, Equatable, Codable {
         }
     }
 
+    /// The fields of an object as readable pairs, for a proposal in plain words.
+    /// Nested values stay JSON. Anything but an object has no fields.
+    public var fields: [(name: String, value: String)] {
+        guard case .object(let values) = self else { return [] }
+        return values.sorted { $0.key < $1.key }.map { key, value in
+            let name = key.replacingOccurrences(of: "_", with: " ")
+            return (name.prefix(1).uppercased() + name.dropFirst(), value.text)
+        }
+    }
+
+    /// The value as text.
+    public var text: String {
+        switch self {
+        case .null: ""
+        case .bool(let value): value ? "true" : "false"
+        case .number(let value):
+            value == value.rounded() && abs(value) < 1e15 ? String(Int64(value)) : String(value)
+        case .string(let value): value
+        case .array, .object: pretty
+        }
+    }
+
     /// Readable, stable text for an approval.
     public var pretty: String {
         let encoder = JSONEncoder()
@@ -62,6 +84,8 @@ public struct Approval: Sendable, Decodable, Identifiable, Equatable {
     public let tool: String
     public let input: JSONValue
     public let quotesExternal: Bool
+    public let reason: String?
+    public let consulted: [String]
     public let status: String
     public let expiresAt: Date
 }
@@ -100,6 +124,7 @@ public struct Run: Sendable, Decodable, Identifiable, Equatable {
     public let reason: String?
     public let report: String?
     public let costEur: Double
+    public let activity: String?
     public let startedAt: Date
 }
 
@@ -145,6 +170,7 @@ public struct EntryDetail: Sendable, Decodable, Equatable, Identifiable {
     public let links: [String]
     public let original: String?
     public let updated: Date
+    public let backlinks: [EntrySummary]?
 }
 
 public struct AskAnswer: Sendable, Decodable, Equatable {

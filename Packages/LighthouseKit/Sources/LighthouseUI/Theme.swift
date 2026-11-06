@@ -24,15 +24,15 @@ enum Theme {
     static let infoSoft = Color(light: 0xE2EBFA, dark: 0x142441)
 
     static func display(_ size: CGFloat, weight: Font.Weight = .bold) -> Font {
-        .custom("Schibsted Grotesk", size: size).weight(weight)
+        .custom("Schibsted Grotesk", size: size, relativeTo: .body).weight(weight)
     }
 
     static func body(_ size: CGFloat = 14, weight: Font.Weight = .regular) -> Font {
-        .custom("IBM Plex Sans", size: size).weight(weight)
+        .custom("IBM Plex Sans", size: size, relativeTo: .body).weight(weight)
     }
 
     static func mono(_ size: CGFloat = 11, weight: Font.Weight = .regular) -> Font {
-        .custom("IBM Plex Mono", size: size).weight(weight)
+        .custom("IBM Plex Mono", size: size, relativeTo: .body).weight(weight)
     }
 }
 

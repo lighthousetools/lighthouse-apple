@@ -20,17 +20,18 @@ public struct LoginView: View {
     }
 
     public var body: some View {
+        @Bindable var model = model
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 LogoMark(size: 30)
                 Text("Lighthouse").font(Theme.display(26)).foregroundStyle(Theme.ink)
             }
-            Text("Connect to the server you run.")
+            Text(tr("Connect to the server you run."))
                 .font(Theme.body(14))
                 .foregroundStyle(Theme.ink2)
                 .padding(.bottom, 6)
             field(
-                TextField("Server address", text: $address)
+                TextField(tr("Server address"), text: $address)
                     .textContentType(.URL)
                     .autocorrectionDisabled()
                     #if os(iOS)
@@ -38,9 +39,9 @@ public struct LoginView: View {
                         .textInputAutocapitalization(.never)
                     #endif
             )
-            field(SecureField("Password", text: $password).textContentType(.password))
+            field(SecureField(tr("Password"), text: $password).textContentType(.password))
             ErrorBanner()
-            Button(busy ? "Signing in…" : "Sign in") {
+            Button(tr(busy ? "Signing in…" : "Sign in")) {
                 Task {
                     busy = true
                     await model.signIn(address: address, password: password)
@@ -50,6 +51,13 @@ public struct LoginView: View {
             }
             .buttonStyle(LampButtonStyle())
             .disabled(busy || address.isEmpty || password.isEmpty)
+            Picker(tr("Language"), selection: $model.language) {
+                ForEach(Language.allCases) { Text($0.name).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            .padding(.top, 8)
         }
         .padding(24)
         .frame(maxWidth: 400)

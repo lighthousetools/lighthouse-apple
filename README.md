@@ -6,6 +6,20 @@ you run yourself. Both connect to your own server.
 - **iOS:** today's overview, approvals, Claude Code sessions, agents, the Second Brain and settings.
 - **Mac:** the same in a window, plus a menu bar item that shows what waits for you and answers permission requests.
 
+Both speak German and English. Choose the language in Settings or on the sign-in screen.
+
+## On the Mac
+
+| Shortcut | Action |
+|---|---|
+| ⌘K | Command palette |
+| ⌘1 to ⌘6 | Switch between areas |
+| ⌘N | New note |
+| ⌥⌘L | Quick note, from anywhere |
+
+The Brain formats Markdown while you type and saves by itself. Type `/` for commands, link entries with `[[Title]]`, and
+drop files anywhere on it.
+
 Requires Xcode 26 or later, and iOS 26 or macOS 26 on the device.
 
 ## Run on your own devices
@@ -38,8 +52,8 @@ cd Packages/LighthouseKit && swift test
 
 ## Not yet included
 
-Push notifications need an Apple key on your server. Until then, the apps refresh while they run. Editing agents and
-credentials happens in the web app.
+Push notifications need an Apple key on your server. Until then, the apps update live only while they run. Editing
+agents and credentials happens in the web app. Widgets and the share extension for iOS are still open.
 
 ## License
 

@@ -49,7 +49,7 @@ final class MemoryStore: TokenStore, @unchecked Sendable {
 let approvalJSON = """
     [{"id":"019a0000-0000-7000-8000-000000000001","run_id":"019a0000-0000-7000-8000-000000000002",
     "agent_id":"mailer","tool":"mail.send","input":{"to":"a","n":1,"ok":true,"list":[null]},
-    "quotes_external":true,"status":"pending","created_at":"2026-11-06T10:00:00.409874Z",
+    "quotes_external":true,"reason":"Because","consulted":["mail.read"],"status":"pending","created_at":"2026-11-06T10:00:00.409874Z",
     "expires_at":"2026-11-09T10:00:00Z","decided_at":null}]
     """
 
@@ -180,6 +180,25 @@ let approvalJSON = """
         FakeServer.routes = routes
         await model.refresh()
         #expect(model.lastError == nil)
+    }
+
+    @Test func aSessionWithARequestIsNotCountedTwice() async {
+        let session = """
+            [{"id":"s1","node_id":"019a0000-0000-7000-8000-000000000001","node_name":"Mac",
+            "project":"billing","branch":null,"status":"waiting","summary":null,"cost_eur":0,
+            "started_at":"2026-11-06T10:00:00Z","updated_at":"2026-11-06T10:00:00Z"},
+            {"id":"s2","node_id":"019a0000-0000-7000-8000-000000000001","node_name":"Mac",
+            "project":"web","branch":null,"status":"waiting","summary":null,"cost_eur":0,
+            "started_at":"2026-11-06T10:00:00Z","updated_at":"2026-11-06T10:00:00Z"}]
+            """
+        let permission = """
+            [{"id":"019a0000-0000-7000-8000-000000000003","project":"billing","tool":"Bash",
+            "input":{},"status":"pending"}]
+            """
+        let routes = ["GET /sessions": (200, session), "GET /permissions": (200, permission)]
+        let model = model(routes, store: MemoryStore("t"))
+        await model.refresh()
+        #expect(model.waitingSessions.map(\.id) == ["s2"])
     }
 }
 }

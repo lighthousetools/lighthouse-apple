@@ -5,12 +5,29 @@ import SwiftUI
 struct MarkdownView: View {
     let source: String
     var size: CGFloat = 15
+    /// Follows a `[[Title]]` link.
+    var onLink: ((String) -> Void)?
 
     private func inline(_ text: String) -> Text {
         let options = AttributedString.MarkdownParsingOptions(
             interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        let styled = (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
+        let linked = Self.linkingWikiTitles(text)
+        let styled = (try? AttributedString(markdown: linked, options: options)) ?? AttributedString(text)
         return Text(styled)
+    }
+
+    /// Turns `[[Title]]` into a link the view can intercept.
+    static func linkingWikiTitles(_ text: String) -> String {
+        var result = ""
+        var rest = Substring(text)
+        while let open = rest.range(of: "[["), let close = rest[open.upperBound...].range(of: "]]") {
+            result += rest[..<open.lowerBound]
+            let title = rest[open.upperBound..<close.lowerBound]
+            let encoded = title.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ""
+            result += "[\(title)](lighthouse-entry:\(encoded))"
+            rest = rest[close.upperBound...]
+        }
+        return result + rest
     }
 
     private func headingFont(_ level: Int) -> Font {
@@ -104,5 +121,13 @@ struct MarkdownView: View {
         .tint(Theme.lamp)
         .textSelection(.enabled)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .environment(
+            \.openURL,
+            OpenURLAction { url in
+                guard url.scheme == "lighthouse-entry" else { return .systemAction }
+                let title = String(url.absoluteString.dropFirst("lighthouse-entry:".count))
+                onLink?(title.removingPercentEncoding ?? title)
+                return .handled
+            })
     }
 }

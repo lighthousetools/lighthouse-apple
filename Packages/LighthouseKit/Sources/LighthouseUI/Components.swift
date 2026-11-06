@@ -1,3 +1,4 @@
+import LighthouseKit
 import SwiftUI
 
 /// The small mono line above headings.
@@ -61,23 +62,22 @@ struct Tag: View {
     }
 }
 
-/// A status pill.
+/// A status pill. Calm states stay quiet, only what needs attention has color.
 struct Pill: View {
     let status: String
 
     private var colors: (Color, Color) {
         switch status {
-        case "succeeded", "done", "allowed", "approved", "active": (Theme.okSoft, Theme.ok)
         case "waiting", "pending": (Theme.lampSoft, Theme.lampInk)
         case "running": (Theme.infoSoft, Theme.info)
         case "failed", "rejected", "denied", "limit_exceeded", "expired":
             (Theme.critSoft, Theme.crit)
-        default: (Theme.surface3, Theme.ink2)
+        default: (.clear, Theme.ink3)
         }
     }
 
     var body: some View {
-        Text(status.replacing("_", with: " "))
+        Text(statusName(status))
             .font(Theme.body(11.5, weight: .semibold))
             .padding(.horizontal, 8)
             .padding(.vertical, 2)

@@ -24,6 +24,12 @@ public final class AppModel {
     public private(set) var costsToday: [DailyCost] = []
     public private(set) var lastError: String?
     public private(set) var serverAddress: String
+    public var language: Language {
+        didSet {
+            Lang.current = language
+            defaults.set(language.rawValue, forKey: Self.languageKey)
+        }
+    }
 
     private let store: TokenStore
     private let defaults: UserDefaults
@@ -33,6 +39,7 @@ public final class AppModel {
     private var token: String?
     private var errorCameFromRefresh = false
     private static let addressKey = "server-address"
+    private static let languageKey = "language"
 
     public init(
         store: TokenStore = KeychainTokenStore(), defaults: UserDefaults = .standard,
@@ -44,6 +51,9 @@ public final class AppModel {
         self.deviceName = deviceName
         self.deviceKind = deviceKind
         serverAddress = defaults.string(forKey: Self.addressKey) ?? ""
+        let stored = defaults.string(forKey: Self.languageKey).flatMap(Language.init(rawValue:))
+        language = stored ?? .system
+        Lang.current = stored ?? .system
         token = store.load()
         phase = token != nil && !serverAddress.isEmpty ? .ready : .signedOut
     }
@@ -59,8 +69,12 @@ public final class AppModel {
     /// Whether the last refresh reached the server.
     public var isConnected: Bool { !errorCameFromRefresh }
 
-    /// Sessions that wait for their owner.
-    public var waitingSessions: [Session] { sessions.filter { $0.status == "waiting" } }
+    /// Sessions that wait for their owner, unless a request already says why.
+    public var waitingSessions: [Session] {
+        sessions.filter { session in
+            session.status == "waiting" && !permissions.contains { $0.project == session.project }
+        }
+    }
 
     /// Requests that need a decision.
     public var pendingCount: Int { approvals.count + permissions.count }
@@ -155,12 +169,39 @@ public final class AppModel {
         }
     }
 
-    /// Refreshes until the surrounding task ends.
-    public func keepFresh(every seconds: Int = 10) async {
+    /// Stays current until the surrounding task ends: the server announces
+    /// changes, and a lost connection is retried with a growing delay.
+    public func keepFresh() async {
+        var delay = 1
         while !Task.isCancelled {
             await refresh()
-            try? await Task.sleep(for: .seconds(seconds))
+            guard phase == .ready, let client else { return }
+            do {
+                for try await _ in client.changes() {
+                    delay = 1
+                    await refresh()
+                }
+            } catch {
+                if Task.isCancelled { return }
+            }
+            try? await Task.sleep(for: .seconds(delay))
+            delay = min(delay * 2, 30)
         }
+    }
+
+    /// Decides all open proposals at once.
+    public func decideAll(approve: Bool) async {
+        let ids = approvals.map(\.id)
+        await perform {
+            try await client?.decide(approvals: ids, approve: approve)
+            approvals.removeAll()
+        }
+        await refresh()
+    }
+
+    /// A readable name for the agent of a run.
+    public func agentName(_ id: String) -> String {
+        agents.first { $0.id == id }?.name ?? readableName(id)
     }
 
     public func decide(_ approval: Approval, approve: Bool) async {

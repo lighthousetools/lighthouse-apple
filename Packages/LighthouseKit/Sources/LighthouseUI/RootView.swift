@@ -4,12 +4,14 @@ import SwiftUI
 /// Chooses between sign-in and the app.
 public struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Navigator.self) private var navigator
 
     public init() {
         LighthouseFonts.register()
     }
 
     public var body: some View {
+        @Bindable var navigator = navigator
         Group {
             switch model.phase {
             case .loading:
@@ -17,49 +19,20 @@ public struct RootView: View {
             case .signedOut:
                 LoginView()
             case .ready:
-                MainView().task { await model.keepFresh() }
+                MainView()
+                    .task { await model.keepFresh() }
+                    .sheet(isPresented: $navigator.showsPalette) { CommandPalette() }
             }
         }
         .tint(Theme.lamp)
-    }
-}
-
-enum Section: String, CaseIterable, Identifiable {
-    case today = "Today"
-    case approvals = "Approvals"
-    case sessions = "Sessions"
-    case agents = "Agents"
-    case brain = "Brain"
-    case settings = "Settings"
-
-    var id: String { rawValue }
-
-    var symbol: String {
-        switch self {
-        case .today: "sun.max"
-        case .approvals: "checkmark.shield"
-        case .sessions: "terminal"
-        case .agents: "square.stack.3d.up"
-        case .brain: "brain"
-        case .settings: "gearshape"
-        }
-    }
-
-    @ViewBuilder @MainActor var content: some View {
-        switch self {
-        case .today: TodayView()
-        case .approvals: ApprovalsView()
-        case .sessions: SessionsView()
-        case .agents: AgentsView()
-        case .brain: BrainView()
-        case .settings: SettingsView()
-        }
+        .environment(\.locale, Lang.locale)
+        .id(model.language)
     }
 }
 
 struct MainView: View {
     @Environment(AppModel.self) private var model
-    @State private var selection = Section.today
+    @Environment(Navigator.self) private var navigator
 
     private func badge(_ section: Section) -> Int {
         switch section {
@@ -70,17 +43,36 @@ struct MainView: View {
     }
 
     var body: some View {
+        @Bindable var navigator = navigator
         #if os(macOS)
-            HStack(spacing: 0) {
-                Sidebar(selection: $selection, badge: badge)
-                NavigationStack { selection.content }
-                    .id(selection)
+            NavigationSplitView {
+                List(Section.allCases, selection: Binding($navigator.section)) { section in
+                    Label(section.title, systemImage: section.symbol)
+                        .font(Theme.body(14, weight: .medium))
+                        .badge(badge(section))
+                        .tag(section)
+                }
+                .safeAreaInset(edge: .bottom) {
+                    HStack(spacing: 8) {
+                        Dot(color: model.isConnected ? Theme.ok : Theme.crit)
+                        Text(model.serverHost)
+                            .font(Theme.mono(11))
+                            .lineLimit(1)
+                            .foregroundStyle(Theme.ink3)
+                        Spacer()
+                    }
+                    .padding(14)
+                }
+                .navigationSplitViewColumnWidth(min: 190, ideal: 210)
+            } detail: {
+                NavigationStack { navigator.section.content }
+                    .id(navigator.section)
+                    .navigationTitle("")
             }
-            .ignoresSafeArea(.container, edges: .top)
         #else
-            TabView(selection: $selection) {
+            TabView(selection: $navigator.section) {
                 ForEach(Section.allCases) { section in
-                    Tab(section.rawValue, systemImage: section.symbol, value: section) {
+                    Tab(section.title, systemImage: section.symbol, value: section) {
                         NavigationStack { section.content }
                     }
                     .badge(badge(section))
@@ -90,100 +82,183 @@ struct MainView: View {
     }
 }
 
-#if os(macOS)
-    struct Sidebar: View {
-        @Environment(AppModel.self) private var model
-        @Binding var selection: Section
-        let badge: (Section) -> Int
+extension Binding {
+    /// Offers a required value as the optional selection a list expects.
+    fileprivate init(_ base: Binding<Section>) where Value == Section? {
+        self.init(get: { base.wrappedValue }, set: { if let value = $0 { base.wrappedValue = value } })
+    }
+}
 
-        var body: some View {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    LogoMark(size: 22)
-                    Text("Lighthouse").font(Theme.display(18)).foregroundStyle(Theme.ink)
-                }
-                .padding(.horizontal, 10)
-                .padding(.top, 34)
-                .padding(.bottom, 12)
-                HStack(spacing: 8) {
-                    Dot(color: model.isConnected ? Theme.ok : Theme.crit)
-                    Text(model.serverHost)
-                        .font(Theme.mono(11.5))
-                        .lineLimit(1)
-                        .foregroundStyle(Theme.ink2)
-                }
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.line))
-                .padding(.bottom, 10)
-                ForEach(Section.allCases) { section in
-                    Button {
-                        selection = section
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: section.symbol)
-                                .frame(width: 18)
-                                .foregroundStyle(selection == section ? Theme.lamp : Theme.ink2)
-                            Text(section.rawValue).font(Theme.body(14, weight: .medium))
-                            Spacer()
-                            if badge(section) > 0 {
-                                Text("\(badge(section))")
-                                    .font(Theme.body(11, weight: .bold))
-                                    .padding(.horizontal, 7)
-                                    .background(Theme.lamp, in: Capsule())
-                                    .foregroundStyle(Theme.onLamp)
-                            }
+/// Everything you can do, from the keyboard.
+struct CommandPalette: View {
+    @Environment(AppModel.self) private var model
+    @Environment(Navigator.self) private var navigator
+    @Environment(\.dismiss) private var dismiss
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    private struct Item: Identifiable {
+        let id: String
+        let symbol: String
+        let action: () -> Void
+    }
+
+    private var items: [Item] {
+        var items = Section.allCases.map { section in
+            Item(id: tr("Go to %@", section.title), symbol: section.symbol) { navigator.section = section }
+        }
+        items.append(Item(id: tr("New note"), symbol: "square.and.pencil") { navigator.newNote() })
+        items.append(Item(id: tr("Quick note"), symbol: "bolt") { navigator.showsCapture = true })
+        for agent in model.agents where agent.blocked.isEmpty {
+            items.append(Item(id: tr("Run %@", agent.name), symbol: "play") {
+                Task { await model.run(agent) }
+            })
+        }
+        let query = text.lowercased()
+        return query.isEmpty ? items : items.filter { $0.id.lowercased().contains(query) }
+    }
+
+    private func perform(_ item: Item) {
+        dismiss()
+        item.action()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            TextField(tr("Search actions"), text: $text)
+                .textFieldStyle(.plain)
+                .font(Theme.body(17))
+                .foregroundStyle(Theme.ink)
+                .focused($focused)
+                .padding(16)
+                .onSubmit { if let first = items.first { perform(first) } }
+            Divider().overlay(Theme.line)
+            ScrollView {
+                VStack(spacing: 2) {
+                    ForEach(items) { item in
+                        Button {
+                            perform(item)
+                        } label: {
+                            Label(item.id, systemImage: item.symbol)
+                                .font(Theme.body(14))
+                                .foregroundStyle(Theme.ink)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
+                                .contentShape(Rectangle())
                         }
-                        .foregroundStyle(Theme.ink)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            selection == section ? Theme.surface : .clear,
-                            in: RoundedRectangle(cornerRadius: 10)
-                        )
-                        .contentShape(RoundedRectangle(cornerRadius: 10))
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
-                Spacer()
-                if let name = model.ownerName {
-                    Text(name).font(Theme.body(13, weight: .semibold)).foregroundStyle(Theme.ink2)
-                        .padding(10)
-                }
+                .padding(8)
             }
-            .padding(10)
-            .frame(width: 232)
-            .frame(maxHeight: .infinity)
-            .background(Theme.sidebar)
+        }
+        .frame(width: 480, height: 340)
+        .background(Theme.surface)
+        .onAppear { focused = true }
+        .onExitCommandIfAvailable { dismiss() }
+    }
+}
+
+extension View {
+    @ViewBuilder fileprivate func onExitCommandIfAvailable(_ action: @escaping () -> Void) -> some View {
+        #if os(macOS)
+            onExitCommand(perform: action)
+        #else
+            self
+        #endif
+    }
+}
+
+/// A small window for a thought, reachable from anywhere.
+public struct QuickCaptureView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @State private var text = ""
+    @State private var failure: String?
+    @FocusState private var focused: Bool
+
+    public init() {
+        LighthouseFonts.register()
+    }
+
+    private func save() async {
+        let lines = text.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
+        let title = String((lines.first ?? "").prefix(80))
+        do {
+            _ = try await model.client?.createNote(
+                title: title, body: lines.count > 1 ? String(lines[1]) : "")
+            text = ""
+            dismiss()
+        } catch {
+            failure = error.localizedDescription
         }
     }
-#endif
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ZStack(alignment: .topLeading) {
+                if text.isEmpty {
+                    Text(tr("Capture a thought…")).font(Theme.body(15)).foregroundStyle(Theme.ink3)
+                        .padding(.leading, 5)
+                }
+                TextEditor(text: $text)
+                    .font(Theme.body(15))
+                    .scrollContentBackground(.hidden)
+                    .focused($focused)
+            }
+            if let failure { Text(failure).font(Theme.body(12.5)).foregroundStyle(Theme.crit) }
+            HStack {
+                Spacer()
+                Button(tr("Cancel")) { dismiss() }
+                    .buttonStyle(QuietButtonStyle())
+                    .keyboardShortcut(.cancelAction)
+                Button(tr("Save")) { Task { await save() } }
+                    .buttonStyle(LampButtonStyle())
+                    .keyboardShortcut(.return, modifiers: .command)
+                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(14)
+        .frame(width: 420, height: 210)
+        .background(Theme.surface)
+        .tint(Theme.lamp)
+        .onAppear { focused = true }
+    }
+}
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        Page(maxWidth: 780) {
-            PageTitle(title: "Settings")
+        @Bindable var model = model
+        Page(maxWidth: 760) {
+            PageTitle(title: tr("Settings"))
             Card {
-                VStack(alignment: .leading, spacing: 10) {
-                    OpenLine(color: model.isConnected ? Theme.ok : Theme.crit, label: "Server", value: model.serverHost)
-                    Button("Sign out") { Task { await model.signOut() } }
+                VStack(alignment: .leading, spacing: 12) {
+                    OpenLine(color: model.isConnected ? Theme.ok : Theme.crit, label: tr("Server"), value: model.serverHost)
+                    HStack {
+                        Text(tr("Language")).font(Theme.body(13.5)).foregroundStyle(Theme.ink)
+                        Spacer()
+                        Picker(tr("Language"), selection: $model.language) {
+                            ForEach(Language.allCases) { Text($0.name).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .fixedSize()
+                    }
+                    Button(tr("Sign out")) { Task { await model.signOut() } }
                         .buttonStyle(QuietButtonStyle(destructive: true))
                 }
             }
-            SectionTitle(text: "Connectors", count: model.connectors.count)
-            if model.connectors.isEmpty { Quiet(text: "No connectors configured.") }
+            SectionTitle(text: tr("Connectors"), count: model.connectors.count)
+            if model.connectors.isEmpty { Quiet(text: tr("No connectors configured.")) }
             ForEach(model.connectors) { connector in
-                Card(padding: 12) {
-                    OpenLine(
-                        color: connector.connected ? Theme.ok : Theme.crit, label: connector.name,
-                        value: connector.connected ? "connected" : "not connected")
-                }
+                OpenLine(
+                    color: connector.connected ? Theme.ok : Theme.crit, label: connector.name,
+                    value: tr(connector.connected ? "connected" : "not connected"))
             }
-            Quiet(text: "Credentials and new connections are managed in the web app.")
+            Quiet(text: tr("Credentials and new connections are managed in the web app."))
         }
     }
 }
