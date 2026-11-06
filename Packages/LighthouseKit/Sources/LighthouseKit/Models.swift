@@ -122,6 +122,7 @@ public struct EntrySummary: Sendable, Decodable, Identifiable, Equatable {
     public let type: String
     public let title: String
     public let snippet: String
+    public let original: String?
     public let updatedAt: Date
 }
 
@@ -129,10 +130,21 @@ public struct SearchHit: Sendable, Decodable, Equatable {
     public let entry: EntrySummary
 }
 
-public struct EntryDetail: Sendable, Decodable, Equatable {
+public struct EntrySource: Sendable, Decodable, Equatable {
+    public let kind: String
+    public let ref: String
+}
+
+public struct EntryDetail: Sendable, Decodable, Equatable, Identifiable {
     public let id: UUID
+    public let type: String
     public let title: String
     public let body: String
+    public let status: String
+    public let sources: [EntrySource]
+    public let links: [String]
+    public let original: String?
+    public let updated: Date
 }
 
 public struct AskAnswer: Sendable, Decodable, Equatable {
@@ -144,4 +156,15 @@ public struct DailyCost: Sendable, Decodable, Equatable {
     public let day: String
     public let provider: String
     public let costEur: Double
+}
+
+public struct Me: Sendable, Decodable, Equatable {
+    public let name: String
+}
+
+public struct Connector: Sendable, Decodable, Identifiable, Equatable {
+    public let name: String
+    public let auth: String
+    public let connected: Bool
+    public var id: String { name }
 }

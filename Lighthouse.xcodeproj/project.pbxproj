@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		384D87458D29D0644758EFE7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA2CADE63561177F1B3578A2 /* Assets.xcassets */; };
+		69D94D604B3269CA9C844D31 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B0D87E9D0C2E7A75C0AE3D17 /* Assets.xcassets */; };
 		6F410737FD0190E104DE4A19 /* LighthouseUI in Frameworks */ = {isa = PBXBuildFile; productRef = 814F6CF3EE0DF47A79787108 /* LighthouseUI */; };
 		717AE4AC2750FF015FDCC5CF /* LighthouseApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B0F80E60DFD60B27678FA7 /* LighthouseApp.swift */; };
 		95B648F28AC18097DFBE8599 /* LighthouseKit in Frameworks */ = {isa = PBXBuildFile; productRef = F76A94CF0184835D548E1182 /* LighthouseKit */; };
@@ -23,8 +25,10 @@
 		80E5852DF20C3801A4743F86 /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
 		9F19749383F19F25F80061DA /* LighthouseKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = LighthouseKit; path = Packages/LighthouseKit; sourceTree = SOURCE_ROOT; };
 		A0B0F80E60DFD60B27678FA7 /* LighthouseApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LighthouseApp.swift; sourceTree = "<group>"; };
+		B0D87E9D0C2E7A75C0AE3D17 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B820D48710A94FCFB6ABE27A /* Lighthouse.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Lighthouse.entitlements; sourceTree = "<group>"; };
 		D37B776E9137D0D3CEF745E5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		EA2CADE63561177F1B3578A2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -71,6 +75,7 @@
 		1C65A36AB1B44F700756E88E /* iOS */ = {
 			isa = PBXGroup;
 			children = (
+				B0D87E9D0C2E7A75C0AE3D17 /* Assets.xcassets */,
 				725E30E325960DF40EF5D423 /* Info.plist */,
 				A0B0F80E60DFD60B27678FA7 /* LighthouseApp.swift */,
 			);
@@ -81,6 +86,7 @@
 		994A04ECADBD1967C1BDFA66 /* Mac */ = {
 			isa = PBXGroup;
 			children = (
+				EA2CADE63561177F1B3578A2 /* Assets.xcassets */,
 				D37B776E9137D0D3CEF745E5 /* Info.plist */,
 				B820D48710A94FCFB6ABE27A /* Lighthouse.entitlements */,
 				4C298A2DC4FCD7AFFD82233C /* LighthouseMacApp.swift */,
@@ -115,6 +121,7 @@
 			buildConfigurationList = B707F6B32875645A00968C9F /* Build configuration list for PBXNativeTarget "LighthouseMac" */;
 			buildPhases = (
 				E9B4D4116899BC3476689B13 /* Sources */,
+				777070971647097E2F2D7CF7 /* Resources */,
 				90ADD96F1CD318EA27E6BD22 /* Frameworks */,
 			);
 			buildRules = (
@@ -135,6 +142,7 @@
 			buildConfigurationList = 6B6FA42B57C12E8157B916AA /* Build configuration list for PBXNativeTarget "Lighthouse" */;
 			buildPhases = (
 				1D61E7402213B65469A1A6D7 /* Sources */,
+				E33D7BD44E8C42502CF6813F /* Resources */,
 				01DE0DC2D5D2980734C7E885 /* Frameworks */,
 			);
 			buildRules = (
@@ -189,6 +197,25 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		777070971647097E2F2D7CF7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				384D87458D29D0644758EFE7 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E33D7BD44E8C42502CF6813F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				69D94D604B3269CA9C844D31 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		1D61E7402213B65469A1A6D7 /* Sources */ = {

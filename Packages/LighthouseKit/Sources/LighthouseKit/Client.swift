@@ -74,7 +74,8 @@ public struct Client: Sendable {
     }
 
     private func data(
-        _ method: String, _ path: String, query: [URLQueryItem] = [], body: Data? = nil
+        _ method: String, _ path: String, query: [URLQueryItem] = [], body: Data? = nil,
+        contentType: String = "application/json"
     ) async throws -> Data {
         var url = baseURL.appending(path: path)
         if !query.isEmpty { url.append(queryItems: query) }
@@ -83,7 +84,7 @@ public struct Client: Sendable {
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         if let body {
             request.httpBody = body
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw ClientError.unreadableAnswer }
@@ -139,6 +140,8 @@ public struct Client: Sendable {
         try await get("permissions", query: Self.pending)
     }
 
+    public func me() async throws -> Me { try await get("me") }
+    public func connectors() async throws -> [Connector] { try await get("connectors") }
     public func sessions() async throws -> [Session] { try await get("sessions") }
     public func nodes() async throws -> [Node] { try await get("nodes") }
     public func agents() async throws -> [Agent] { try await get("agents") }
@@ -211,13 +214,46 @@ public struct Client: Sendable {
         try await post("brain/ask", Question(question: question))
     }
 
-    public func saveNote(title: String, body: String) async throws {
-        struct Note: Encodable {
-            let type: String
-            let title: String
-            let body: String
+    private struct NewNote: Encodable {
+        let type: String
+        let title: String
+        let body: String
+    }
+
+    private struct EntryChange: Encodable {
+        let title: String
+        let body: String
+    }
+
+    /// Stores a new note and returns it.
+    public func createNote(title: String, body: String) async throws -> EntryDetail {
+        try await post("brain/entries", NewNote(type: "note", title: title, body: body))
+    }
+
+    public func update(entry id: UUID, title: String, body: String) async throws {
+        _ = try await data(
+            "PATCH", "brain/entries/\(id.uuidString.lowercased())",
+            body: try JSONEncoder().encode(EntryChange(title: title, body: body)))
+    }
+
+    public func delete(entry id: UUID) async throws {
+        _ = try await data("DELETE", "brain/entries/\(id.uuidString.lowercased())")
+    }
+
+    /// Uploads a file and returns its entry.
+    public func upload(name: String, contentType: String, bytes: Data) async throws -> EntryDetail {
+        let data = try await data(
+            "POST", "brain/files", query: [URLQueryItem(name: "name", value: name)], body: bytes,
+            contentType: contentType)
+        do {
+            return try Self.decoder.decode(EntryDetail.self, from: data)
+        } catch {
+            throw ClientError.unreadableAnswer
         }
-        let _: EntryDetail = try await post(
-            "brain/entries", Note(type: "note", title: title, body: body))
+    }
+
+    /// Downloads the original of a file.
+    public func original(of id: UUID) async throws -> Data {
+        try await data("GET", "brain/files/\(id.uuidString.lowercased())")
     }
 }

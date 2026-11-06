@@ -10,23 +10,35 @@ public struct LoginView: View {
 
     public init() {}
 
+    private func field(_ content: some View) -> some View {
+        content
+            .textFieldStyle(.plain)
+            .font(Theme.body(15))
+            .padding(10)
+            .background(Theme.surface2, in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.line))
+    }
+
     public var body: some View {
-        Form {
-            Section {
-                TextField("Server address", text: $address, prompt: Text("lighthouse.example"))
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                LogoMark(size: 30)
+                Text("Lighthouse").font(Theme.display(26)).foregroundStyle(Theme.ink)
+            }
+            Text("Connect to the server you run.")
+                .font(Theme.body(14))
+                .foregroundStyle(Theme.ink2)
+                .padding(.bottom, 6)
+            field(
+                TextField("Server address", text: $address)
                     .textContentType(.URL)
                     .autocorrectionDisabled()
                     #if os(iOS)
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                     #endif
-                SecureField("Password", text: $password)
-                    .textContentType(.password)
-            } header: {
-                Text("Your Lighthouse server")
-            } footer: {
-                Text("The address of the server you run. Sign-in uses the password you set there.")
-            }
+            )
+            field(SecureField("Password", text: $password).textContentType(.password))
             ErrorBanner()
             Button(busy ? "Signing in…" : "Sign in") {
                 Task {
@@ -36,9 +48,13 @@ public struct LoginView: View {
                     busy = false
                 }
             }
+            .buttonStyle(LampButtonStyle())
             .disabled(busy || address.isEmpty || password.isEmpty)
         }
-        .formStyle(.grouped)
+        .padding(24)
+        .frame(maxWidth: 400)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .pageBackground()
         .onAppear { address = model.serverAddress }
     }
 }

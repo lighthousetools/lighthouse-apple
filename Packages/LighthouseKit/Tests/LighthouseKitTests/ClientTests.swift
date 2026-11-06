@@ -27,6 +27,7 @@ final class FakeServer: URLProtocol, @unchecked Sendable {
         let key = "\(request.httpMethod ?? "") \(request.url?.path() ?? "")"
         let (status, body) = Self.lock.withLock {
             Self.seen.append(request)
+            if key == "GET /me", Self.routes[key] == nil { return (200, #"{"name":"Alex"}"#) }
             return Self.routes[key] ?? (200, "[]")
         }
         let response = HTTPURLResponse(

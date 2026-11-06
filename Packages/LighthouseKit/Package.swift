@@ -10,7 +10,9 @@ let package = Package(
     ],
     targets: [
         .target(name: "LighthouseKit"),
-        .target(name: "LighthouseUI", dependencies: ["LighthouseKit"]),
+        .target(
+            name: "LighthouseUI", dependencies: ["LighthouseKit"],
+            resources: [.copy("Resources/Fonts")]),
         .testTarget(name: "LighthouseKitTests", dependencies: ["LighthouseKit"]),
     ]
 )

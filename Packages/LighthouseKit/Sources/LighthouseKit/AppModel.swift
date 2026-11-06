@@ -19,7 +19,9 @@ public final class AppModel {
     public private(set) var nodes: [Node] = []
     public private(set) var runs: [Run] = []
     public private(set) var agents: [Agent] = []
-    public private(set) var spentToday = 0.0
+    public private(set) var ownerName: String?
+    public private(set) var connectors: [Connector] = []
+    public private(set) var costsToday: [DailyCost] = []
     public private(set) var lastError: String?
     public private(set) var serverAddress: String
 
@@ -45,6 +47,20 @@ public final class AppModel {
         token = store.load()
         phase = token != nil && !serverAddress.isEmpty ? .ready : .signedOut
     }
+
+    /// Model costs of today across all providers.
+    public var spentToday: Double { costsToday.map(\.costEur).reduce(0, +) }
+
+    /// Host of the current server, for status lines.
+    public var serverHost: String {
+        (try? Client.serverURL(from: serverAddress))?.host() ?? serverAddress
+    }
+
+    /// Whether the last refresh reached the server.
+    public var isConnected: Bool { !errorCameFromRefresh }
+
+    /// Sessions that wait for their owner.
+    public var waitingSessions: [Session] { sessions.filter { $0.status == "waiting" } }
 
     /// Requests that need a decision.
     public var pendingCount: Int { approvals.count + permissions.count }
@@ -115,6 +131,8 @@ public final class AppModel {
             async let runs = client.runs()
             async let agents = client.agents()
             async let costs = client.costs(days: 1)
+            async let me = client.me()
+            async let connectors = client.connectors()
             self.approvals = try await approvals
             self.permissions = try await permissions
             self.sessions = try await sessions
@@ -122,7 +140,9 @@ public final class AppModel {
             self.runs = try await runs
             self.agents = try await agents
             let today = Date.now.formatted(.iso8601.year().month().day())
-            spentToday = try await costs.filter { $0.day == today }.map(\.costEur).reduce(0, +)
+            costsToday = try await costs.filter { $0.day == today }
+            ownerName = try await me.name
+            self.connectors = try await connectors
             if errorCameFromRefresh {
                 lastError = nil
                 errorCameFromRefresh = false
