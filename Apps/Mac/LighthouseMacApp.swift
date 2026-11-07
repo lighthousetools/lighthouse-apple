@@ -95,6 +95,15 @@ struct LighthouseCommands: Commands {
         navigator.open(route)
     }
 
+    /// One choice of the Company menu, checked while the web app shows it.
+    private func orgItem(id: String, name: String) -> some View {
+        Toggle(
+            name,
+            isOn: Binding(get: { shell.currentOrg == id }, set: { _ in shell.chooseOrg(id) })
+        )
+        .disabled(model.phase != .ready)
+    }
+
     var body: some Commands {
         CommandGroup(replacing: .appSettings) {
             Button(tr("Settings…")) { show(WebRoute(.settings)) }
@@ -112,6 +121,13 @@ struct LighthouseCommands: Commands {
             Button(tr("Reload")) { shell.reload() }
                 .keyboardShortcut("r")
                 .disabled(model.phase != .ready)
+        }
+        CommandMenu(tr("Company")) {
+            orgItem(id: "", name: tr("All companies"))
+            if !model.organizations.isEmpty { Divider() }
+            ForEach(model.organizations) { organization in
+                orgItem(id: organization.id, name: organization.name)
+            }
         }
         CommandMenu("Lighthouse") {
             Button(tr("Search actions")) { shell.send(.palette) }

@@ -25,10 +25,10 @@ struct MainWindow: View {
                         .opacity(shell.status == .ready ? 1 : 0)
                     problem
                 }
-                .background(Color(nsColor: ShellColors.background))
             }
         }
         .ignoresSafeArea()
+        .background(SidebarMaterial().ignoresSafeArea())
         .frame(minWidth: 960, minHeight: 620)
         .background(WindowStyler())
         .onAppear(perform: configure)
@@ -104,6 +104,20 @@ struct WebViewHost: NSViewRepresentable {
     }
 }
 
+/// The material of a Mac sidebar, blended with what lies behind the window. It
+/// follows light and dark mode and dims when the window is inactive.
+struct SidebarMaterial: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .sidebar
+        view.blendingMode = .behindWindow
+        view.state = .followsWindowActiveState
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
+}
+
 /// Lets the page run up under a transparent title bar, with the window
 /// buttons resting on the web app's sidebar.
 struct WindowStyler: NSViewRepresentable {
@@ -119,7 +133,8 @@ struct WindowStyler: NSViewRepresentable {
             window.styleMask.insert(.fullSizeContentView)
             window.toolbar = nil
             window.isMovableByWindowBackground = false
-            window.backgroundColor = ShellColors.background
+            // Clear, so the sidebar material behind the page blends with the desktop.
+            window.backgroundColor = .clear
             window.tabbingMode = .disallowed
         }
     }

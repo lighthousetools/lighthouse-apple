@@ -23,6 +23,9 @@ final class WebShell: NSObject {
     private(set) var retrying = false
     /// The count the web app asked for, once it uses the bridge.
     private(set) var webBadge: Int?
+    /// The organization the web app shows, or "" for all. Kept here, because the
+    /// web view stores nothing between launches.
+    private(set) var currentOrg: String
 
     @ObservationIgnored let webView: ShellWebView
     @ObservationIgnored var onSignedOut: () -> Void = {}
@@ -41,10 +44,12 @@ final class WebShell: NSObject {
     @ObservationIgnored private var pendingRoute: WebRoute?
     @ObservationIgnored private let defaults: UserDefaults
     private static let routeKey = "web-last-route"
+    private static let orgKey = "web-org"
     private static let world = WKContentWorld.world(name: "lighthouse-shell")
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        currentOrg = defaults.string(forKey: Self.orgKey) ?? ""
         let configuration = WKWebViewConfiguration()
         // Nothing of the web app reaches the disk: the token comes from the
         // Keychain with every page load.
@@ -57,7 +62,16 @@ final class WebShell: NSObject {
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = false
         webView.allowsMagnification = true
-        webView.underPageBackgroundColor = ShellColors.background
+        // The page is transparent where it wants the window's sidebar material
+        // to show, like the sidebar of Finder or Mail.
+        // Key-value coding reaches WebKit's `_setDrawsBackground:`; the check
+        // keeps a future WebKit without it from crashing the app.
+        if webView.responds(to: NSSelectorFromString("setDrawsBackground:"))
+            || webView.responds(to: NSSelectorFromString("_setDrawsBackground:"))
+        {
+            webView.setValue(false, forKey: "drawsBackground")
+        }
+        webView.underPageBackgroundColor = .clear
         #if DEBUG
             webView.isInspectable = true
         #endif
@@ -111,11 +125,12 @@ final class WebShell: NSObject {
         controller.removeAllUserScripts()
         controller.addUserScript(
             WKUserScript(
-                source: ShellScript.documentStart(origin: origin, token: token, language: language),
+                source: ShellScript.documentStart(
+                    origin: origin, token: token, language: language, org: currentOrg),
                 injectionTime: .atDocumentStart, forMainFrameOnly: true, in: Self.world))
         controller.addUserScript(
             WKUserScript(
-                source: ShellScript.documentEnd(origin: origin), injectionTime: .atDocumentEnd,
+                source: ShellScript.documentEnd(origin: origin, vibrancy: true), injectionTime: .atDocumentEnd,
                 forMainFrameOnly: true, in: Self.world))
     }
 
@@ -139,6 +154,19 @@ final class WebShell: NSObject {
         } else {
             load(route)
         }
+    }
+
+    /// Shows one organization in the web app, or all of them for "".
+    func chooseOrg(_ id: String) {
+        guard OrganizationID.isValid(id) else { return }
+        remember(org: id)
+        send(.org(id))
+    }
+
+    private func remember(org id: String) {
+        currentOrg = id
+        if id.isEmpty { defaults.removeObject(forKey: Self.orgKey) } else { defaults.set(id, forKey: Self.orgKey) }
+        installScripts()
     }
 
     /// Sends a command to the web app, such as opening its palette.
@@ -226,6 +254,8 @@ final class WebShell: NSObject {
             NSWorkspace.shared.open(url)
         case .ready:
             webAdopted = true
+        case .org(let id):
+            if id != currentOrg { remember(org: id) }
         }
     }
 }
