@@ -15,11 +15,11 @@ Both speak German and English. Choose the language in Settings or on the sign-in
 | Shortcut | Action |
 |---|---|
 | ⌘K | Command palette |
-| ⌘1 to ⌘8 | Switch between areas |
+| ⌘1 to ⌘9 | The first nine areas of the navigation |
 | ⌘N | New note |
 | ⌘R | Reload |
 | ⌘, | Settings |
-| ⌥⌘L | Quick note, from anywhere |
+| ⌥⌘L | Quick panel for a note or a task, from anywhere |
 
 The Mac window needs a server that delivers the web app (`paths.web` in `lighthouse.toml`). If the server cannot be
 reached, the window says so and tries again by itself.
