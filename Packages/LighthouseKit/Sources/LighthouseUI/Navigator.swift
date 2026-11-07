@@ -24,6 +24,11 @@ public enum Section: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// The same area in the web app.
+    public var webRoute: WebRoute {
+        WebRoute(WebArea(rawValue: rawValue.lowercased()) ?? .today)
+    }
+
     @ViewBuilder @MainActor var content: some View {
         switch self {
         case .today: TodayView()
@@ -45,8 +50,16 @@ public final class Navigator {
     public var showsCapture = false
     /// Counts requests, so that the Brain reacts to each one.
     public var newNoteRequests = 0
+    /// A place the Mac window should show, for an app that shows the web app.
+    /// Whoever shows it sets it back to nil.
+    public var requestedRoute: WebRoute?
 
     public init() {}
+
+    /// Asks for the main window at a place of the web app.
+    public func open(_ route: WebRoute) {
+        requestedRoute = route
+    }
 
     public func newNote() {
         section = .brain

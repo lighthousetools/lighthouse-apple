@@ -71,7 +71,7 @@ public enum ShellScript {
         """
         (() => {
           if (location.origin !== \(literal(origin))) return;
-          document.documentElement.dataset.shell = "mac";
+          document.documentElement.dataset.nativeShell = "mac";
           const style = document.createElement("style");
           style.textContent = `\(css)`;
           document.head.appendChild(style);
@@ -80,7 +80,8 @@ public enum ShellScript {
     }
 
     static let css = """
-        html[data-shell="mac"] .sidebar { padding-top: 46px; }
+        :root[data-native-shell="mac"] { --native-titlebar-height: 28px; --native-controls-width: 78px; }
+        :root[data-native-shell="mac"] .layout > .sidebar { padding-top: 46px; }
         """
 
     /// Sends a command to the page. A web app that adopted the bridge cancels

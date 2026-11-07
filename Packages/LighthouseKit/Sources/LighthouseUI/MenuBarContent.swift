@@ -26,8 +26,9 @@
             }
         }
 
-        private func open(_ section: Section) {
+        private func open(_ section: Section, route: WebRoute? = nil) {
             navigator.section = section
+            navigator.open(route ?? section.webRoute)
             openWindow(id: "main")
             NSApplication.shared.activate()
         }
@@ -138,7 +139,8 @@
                     ForEach(model.permissions) { request($0) }
                     if !model.approvals.isEmpty {
                         Button {
-                            open(.approvals)
+                            let only = model.approvals.count == 1 ? model.approvals.first : nil
+                            open(.approvals, route: only.map { WebRoute.approval($0.id) })
                         } label: {
                             line(
                                 Theme.lamp,
@@ -160,7 +162,10 @@
                 }
                 Divider().overlay(Theme.line)
                 HStack {
-                    Button(tr("Open Lighthouse")) { open(navigator.section) }
+                    Button(tr("Open Lighthouse")) {
+                        openWindow(id: "main")
+                        NSApplication.shared.activate()
+                    }
                         .buttonStyle(.plain)
                         .font(Theme.body(13, weight: .medium))
                         .foregroundStyle(Theme.lampInk)

@@ -226,4 +226,6 @@ let germanStrings: [String: String] = [
     "Change server…": "Server wechseln…",
     "Reload": "Neu laden",
     "Settings…": "Einstellungen…",
+    "Weekly report": "Wochenbericht",
+    "Log": "Protokoll",
 ]

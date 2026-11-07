@@ -10,15 +10,22 @@ public protocol TokenStore: Sendable {
 
 /// Stores the token in the Keychain, for this device only.
 public struct KeychainTokenStore: TokenStore {
+    public static let defaultService = "tools.lighthouse.app"
+    private let service: String
+
     private var query: [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "tools.lighthouse.app",
+            kSecAttrService as String: service,
             kSecAttrAccount as String: "device-token",
         ]
     }
 
-    public init() {}
+    /// A build under another bundle identifier, such as one for a test server,
+    /// passes its own service so that it keeps a sign-in of its own.
+    public init(service: String = KeychainTokenStore.defaultService) {
+        self.service = service
+    }
 
     public func load() -> String? {
         var request = query
