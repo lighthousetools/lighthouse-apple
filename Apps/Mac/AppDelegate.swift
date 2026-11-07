@@ -50,6 +50,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             tracker = RequestTracker()
             return
         }
+        // The first look after sign-in or launch only learns what is already there.
+        guard model.hasLoaded else { return }
         let candidates = RequestNotice.candidates(
             ready: model.readyFeed, approvals: model.approvals, permissions: model.permissions,
             alerts: model.alerts)

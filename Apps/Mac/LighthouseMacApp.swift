@@ -50,7 +50,7 @@ struct MenuBarLabel: View {
     private var attentionKeys: [String] {
         (model.readyFeed?.items.map(\.key) ?? [])
             + model.approvals.map(\.id.uuidString) + model.permissions.map(\.id.uuidString)
-            + model.alerts.map(\.id.uuidString) + [String(model.pendingCount)]
+            + model.alerts.map(\.id.uuidString) + [String(model.pendingCount), String(model.hasLoaded)]
     }
 
     var body: some View {

@@ -28,6 +28,9 @@ public final class AppModel {
     public private(set) var alertCounts = AlertCounts()
     /// Unresolved alerts, worst first.
     public private(set) var alerts: [Alert] = []
+    /// Whether a refresh has succeeded since sign-in, so that what is already
+    /// waiting is not mistaken for something new.
+    public private(set) var hasLoaded = false
     public private(set) var serverAddress: String
     public var language: Language {
         didSet {
@@ -146,6 +149,7 @@ public final class AppModel {
         readyFeed = nil
         alertCounts = AlertCounts()
         alerts = []
+        hasLoaded = false
         phase = .signedOut
     }
 
@@ -187,6 +191,7 @@ public final class AppModel {
             ownerName = try await me.name
             self.connectors = try await connectors
             await refreshReady(client)
+            hasLoaded = true
             if errorCameFromRefresh {
                 lastError = nil
                 errorCameFromRefresh = false
