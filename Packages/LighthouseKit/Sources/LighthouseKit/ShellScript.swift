@@ -93,7 +93,7 @@ public enum ShellScript {
             fallback =
                 #"window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true, cancelable: true }));"#
         case .newNote:
-            fallback = #"location.hash = "brain";"#
+            fallback = ##"location.hash = "#brain/new";"##
         }
         return """
             (() => {

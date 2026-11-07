@@ -23,6 +23,11 @@ public final class AppModel {
     public private(set) var connectors: [Connector] = []
     public private(set) var costsToday: [DailyCost] = []
     public private(set) var lastError: String?
+    /// What waits for the owner, from servers that offer `GET /ready`.
+    public private(set) var readyFeed: ReadyFeed?
+    public private(set) var alertCounts = AlertCounts()
+    /// Unresolved alerts, worst first.
+    public private(set) var alerts: [Alert] = []
     public private(set) var serverAddress: String
     public var language: Language {
         didSet {
@@ -76,8 +81,22 @@ public final class AppModel {
         }
     }
 
-    /// Requests that need a decision.
-    public var pendingCount: Int { approvals.count + permissions.count }
+    /// What waits for the owner: the ready feed, or on older servers the
+    /// requests that need a decision.
+    public var pendingCount: Int { readyFeed?.total ?? approvals.count + permissions.count }
+
+    /// Unresolved critical alerts.
+    public var criticalAlerts: [Alert] { alerts.filter(\.isCritical) }
+
+    /// Whether a server event touches what the apps keep. Events for rules,
+    /// memory, automations and the like only matter to the web app.
+    public nonisolated static func refreshes(on event: String) -> Bool {
+        let relevant: Set<String> = [
+            "changed", "ready.changed", "alert.raised", "alerts.changed", "tasks.changed",
+            "sessions.changed", "run.waiting", "run.finished",
+        ]
+        return relevant.contains(event)
+    }
 
     /// The token the web app of the Mac window signs in with. It stays in the
     /// Keychain and in memory, never in a file of the web view.
@@ -124,6 +143,9 @@ public final class AppModel {
         nodes = []
         runs = []
         agents = []
+        readyFeed = nil
+        alertCounts = AlertCounts()
+        alerts = []
         phase = .signedOut
     }
 
@@ -164,6 +186,7 @@ public final class AppModel {
             costsToday = try await costs.filter { $0.day == today }
             ownerName = try await me.name
             self.connectors = try await connectors
+            await refreshReady(client)
             if errorCameFromRefresh {
                 lastError = nil
                 errorCameFromRefresh = false
@@ -176,6 +199,24 @@ public final class AppModel {
         }
     }
 
+    /// The ready feed and alerts are newer than some servers, so their absence
+    /// is no error.
+    private func refreshReady(_ client: Client) async {
+        async let feed = try? client.ready()
+        async let counts = try? client.alertCounts()
+        async let active = try? client.activeAlerts()
+        readyFeed = await feed
+        alertCounts = await counts ?? readyFeed?.alerts ?? AlertCounts()
+        alerts = await active ?? []
+    }
+
+    /// Creates a task at the top of the owner's list.
+    public func createTask(title: String, notes: String?) async throws {
+        guard let client else { throw ClientError.invalidAddress }
+        _ = try await client.createTask(title: title, notes: notes)
+        await refresh()
+    }
+
     /// Stays current until the surrounding task ends: the server announces
     /// changes, and a lost connection is retried with a growing delay.
     public func keepFresh() async {
@@ -184,9 +225,9 @@ public final class AppModel {
             await refresh()
             guard phase == .ready, let client else { return }
             do {
-                for try await _ in client.changes() {
+                for try await event in client.changes() {
                     delay = 1
-                    await refresh()
+                    if Self.refreshes(on: event.name) { await refresh() }
                 }
             } catch {
                 if Task.isCancelled { return }

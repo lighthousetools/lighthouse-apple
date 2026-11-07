@@ -13,7 +13,7 @@ struct BridgeTests {
             message
                 == .notify(
                     title: "Approval needed", body: "Send the mail?",
-                    route: WebRoute(.approvals, param: "abc"), id: "a1"))
+                    route: WebRoute(.ready, param: "abc"), id: "a1"))
         let long = try BridgeMessage.parse(["type": "notify", "title": String(repeating: "x", count: 500)])
         guard case .notify(let title, let body, let route, let id) = long else {
             Issue.record("not a notification")
@@ -118,28 +118,38 @@ struct BridgeTests {
 
 struct WebRouteTests {
     @Test func hashesAreReadLikeTheWebApp() {
-        #expect(WebRoute(hash: "#approvals/123") == WebRoute(.approvals, param: "123"))
+        #expect(WebRoute(hash: "#tasks/123") == WebRoute(.tasks, param: "123"))
         #expect(WebRoute(hash: "brain") == WebRoute(.brain))
-        #expect(WebRoute(hash: "") == WebRoute(.today))
-        #expect(WebRoute(hash: "#nothing/1") == WebRoute(.today))
+        #expect(WebRoute(hash: "#/alerts") == WebRoute(.alerts))
+        #expect(WebRoute(hash: "") == WebRoute(.ready))
+        #expect(WebRoute(hash: "#nothing/1") == WebRoute(.ready))
         #expect(WebRoute(hash: "#brain/") == WebRoute(.brain))
-        #expect(WebRoute(hash: "#brain/a/b") == WebRoute(.brain, param: "a"))
+        #expect(WebRoute(hash: "#brain/a/b") == WebRoute(.brain, param: "a/b"))
+        #expect(WebRoute(hash: "#ready/approval%3Aabc") == WebRoute(.ready, param: "approval:abc"))
     }
 
-    @Test func routesWriteHashes() {
+    @Test func oldNamesLeadToTheirNewPlace() {
+        #expect(WebRoute(hash: "#today") == WebRoute(.ready))
+        #expect(WebRoute(hash: "#approvals/abc") == WebRoute(.ready, param: "abc"))
+        #expect(WebRoute(hash: "#weekly") == WebRoute(.recap))
+        #expect(WebRoute(hash: "#claude") == WebRoute(.sessions))
+    }
+
+    @Test func routesWriteHashesLikeEncodeURIComponent() {
         #expect(WebRoute(.settings).hash == "#settings")
-        #expect(WebRoute(.brain, param: "a b").hash == "#brain/a%20b")
-        #expect(WebRoute(hash: WebRoute(.brain, param: "a b").hash) == WebRoute(.brain, param: "a b"))
+        #expect(WebRoute(.brain, param: "a b/c").hash == "#brain/a%20b%2Fc")
+        #expect(WebRoute(hash: WebRoute(.brain, param: "a b/c").hash) == WebRoute(.brain, param: "a b/c"))
         let id = UUID(uuidString: "6F9619FF-8B86-D011-B42D-00C04FC964FF")!
-        #expect(WebRoute.approval(id).hash == "#approvals/6f9619ff-8b86-d011-b42d-00c04fc964ff")
+        #expect(WebRoute.approval(id).hash == "#ready/approval%3A6f9619ff-8b86-d011-b42d-00c04fc964ff")
+        #expect(WebRoute.permission(id) == WebRoute(.ready, param: "permission:6f9619ff-8b86-d011-b42d-00c04fc964ff"))
+        #expect(WebRoute.alert(id).hash == "#alerts/6f9619ff-8b86-d011-b42d-00c04fc964ff")
+        #expect(WebRoute.task(id).hash == "#tasks/6f9619ff-8b86-d011-b42d-00c04fc964ff")
     }
 
-    @Test func shortcutsFollowTheSidebar() {
-        #expect(WebRoute.shortcut(1) == WebRoute(.today))
-        #expect(WebRoute.shortcut(2) == WebRoute(.approvals))
-        #expect(WebRoute.shortcut(5) == WebRoute(.brain))
-        #expect(WebRoute.shortcut(8) == WebRoute(.settings))
-        #expect(WebRoute.shortcut(9) == nil)
+    @Test func shortcutsFollowTheFirstNineNavigationEntries() {
+        let expected: [WebArea] = [.ready, .tasks, .brief, .recap, .sessions, .alerts, .brain, .automations, .agents]
+        #expect((1...9).compactMap { WebRoute.shortcut($0)?.area } == expected)
+        #expect(WebRoute.shortcut(10) == nil)
         #expect(WebRoute.shortcut(0) == nil)
     }
 
@@ -147,7 +157,7 @@ struct WebRouteTests {
         let server = URL(string: "https://lighthouse.example.com")!
         #expect(WebRoute(.agents).url(on: server).absoluteString == "https://lighthouse.example.com/#agents")
         let local = URL(string: "http://127.0.0.1:8080/")!
-        #expect(WebRoute(.today).url(on: local).absoluteString == "http://127.0.0.1:8080/#today")
+        #expect(WebRoute(.ready).url(on: local).absoluteString == "http://127.0.0.1:8080/#ready")
     }
 }
 
@@ -175,30 +185,97 @@ struct ShellScriptTests {
 }
 
 struct RequestTrackerTests {
+    private static var decoder: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }
+
     private func approval(_ id: UUID) throws -> Approval {
         let json = """
             {"id":"\(id.uuidString)","agent_id":"mail-triage","tool":"send_mail","input":{},
              "quotes_external":false,"reason":null,"consulted":[],"status":"pending",
              "expires_at":"2026-01-01T00:00:00Z"}
             """
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .iso8601
-        return try decoder.decode(Approval.self, from: Data(json.utf8))
+        return try Self.decoder.decode(Approval.self, from: Data(json.utf8))
     }
 
-    @Test func onlyNewRequestsAreAnnounced() throws {
+    private func feed(_ items: [(String, String)]) throws -> ReadyFeed {
+        let list = items.map { kind, id in
+            """
+            {"kind":"\(kind)","group":"decisions","id":"\(id)","title":"Send the report","summary":null,
+             "agent_id":"mail","created_at":"2026-01-01T00:00:00Z","detail":{}}
+            """
+        }
+        let json = """
+            {"total":\(items.count),"counts":{},"groups":{},"alerts":{"critical":0,"warning":0,"info":0},
+             "items":[\(list.joined(separator: ","))]}
+            """
+        return try Self.decoder.decode(ReadyFeed.self, from: Data(json.utf8))
+    }
+
+    private func alert(_ id: UUID, severity: String) throws -> Alert {
+        let json = """
+            {"id":"\(id.uuidString)","kind":"connector","key":"connector:linear","severity":"\(severity)",
+             "title":"Linear is not authorized","status":"open","count":1,
+             "first_seen_at":"2026-01-01T00:00:00Z","last_seen_at":"2026-01-01T00:00:00Z"}
+            """
+        return try Self.decoder.decode(Alert.self, from: Data(json.utf8))
+    }
+
+    @Test func onlyNewItemsAreAnnounced() throws {
         var tracker = RequestTracker()
-        let first = try approval(UUID())
-        #expect(tracker.notices(approvals: [first], permissions: []).isEmpty)
-        #expect(tracker.notices(approvals: [first], permissions: []).isEmpty)
-        let second = try approval(UUID())
-        let notices = tracker.notices(approvals: [first, second], permissions: [])
-        #expect(notices.count == 1)
-        #expect(notices.first?.route == .approval(second.id))
+        let first = try feed([("approval", "a1")])
+        let candidates = { (ready: ReadyFeed) in
+            RequestNotice.candidates(ready: ready, approvals: [], permissions: [], alerts: [])
+        }
+        #expect(tracker.fresh(candidates(first)).isEmpty)
+        #expect(tracker.fresh(candidates(first)).isEmpty)
+        let notices = tracker.fresh(candidates(try feed([("approval", "a1"), ("task", "t1")])))
+        #expect(notices.map(\.key) == ["task:t1"])
+        #expect(notices.first?.route == WebRoute(.ready, param: "task:t1"))
+        #expect(notices.first?.webAnnounces == true)
+        #expect(tracker.fresh(candidates(try feed([]))).isEmpty)
+        #expect(tracker.fresh(candidates(first)).count == 1)
+    }
+
+    @Test func olderServersAnnounceApprovals() throws {
+        let item = try approval(UUID())
+        let notices = RequestNotice.candidates(ready: nil, approvals: [item], permissions: [], alerts: [])
+        #expect(notices.first?.key == "approval:\(item.id.uuidString.lowercased())")
+        #expect(notices.first?.route == .approval(item.id))
         #expect(notices.first?.body.contains("Mail triage") == true)
-        #expect(notices.first?.body.contains("Send mail") == true)
-        #expect(tracker.notices(approvals: [], permissions: []).isEmpty)
-        #expect(tracker.notices(approvals: [first], permissions: []).count == 1)
+    }
+
+    @Test func onlyCriticalAlertsAreAnnounced() throws {
+        let critical = try alert(UUID(), severity: "critical")
+        let warning = try alert(UUID(), severity: "warning")
+        let notices = RequestNotice.candidates(
+            ready: try feed([]), approvals: [], permissions: [], alerts: [critical, warning])
+        #expect(notices.count == 1)
+        #expect(notices.first?.route == .alert(critical.id))
+        #expect(notices.first?.body == "Linear is not authorized")
+        #expect(notices.first?.webAnnounces == false)
+    }
+
+    @Test func onlyEventsTheAppsKeepCauseARefresh() {
+        for event in ["changed", "ready.changed", "alert.raised", "alerts.changed", "tasks.changed"] {
+            #expect(AppModel.refreshes(on: event), "\(event)")
+        }
+        for event in ["rules.changed", "memory.changed", "automations.changed", "document.created"] {
+            #expect(!AppModel.refreshes(on: event), "\(event)")
+        }
+    }
+}
+
+struct QuickEntryTests {
+    @Test func theFirstLineIsTheTitle() {
+        let entry = QuickEntry(text: "  Call the bank \nabout the card\nsoon  ")
+        #expect(entry.title == "Call the bank")
+        #expect(entry.body == "about the card\nsoon")
+        #expect(QuickEntry(text: "Only a title").body.isEmpty)
+        #expect(QuickEntry(text: " \n ").isEmpty)
+        #expect(QuickEntry(text: String(repeating: "x", count: 100)).title.count == 80)
     }
 }

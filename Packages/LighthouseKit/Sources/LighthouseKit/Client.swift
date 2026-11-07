@@ -259,6 +259,25 @@ public struct Client: Sendable {
     }
 
     public func me() async throws -> Me { try await get("me") }
+    public func ready() async throws -> ReadyFeed { try await get("ready") }
+    public func alertCounts() async throws -> AlertCounts { try await get("alerts/counts") }
+
+    /// Unresolved alerts, worst first.
+    public func activeAlerts(limit: Int = 20) async throws -> [Alert] {
+        try await get(
+            "alerts",
+            query: [URLQueryItem(name: "view", value: "active"), URLQueryItem(name: "limit", value: String(limit))])
+    }
+
+    private struct NewTask: Encodable {
+        let title: String
+        let notes: String?
+    }
+
+    /// Puts a task at the top of the owner's list.
+    public func createTask(title: String, notes: String? = nil) async throws -> TaskItem {
+        try await post("tasks", NewTask(title: title, notes: notes?.isEmpty == true ? nil : notes))
+    }
     public func connectors() async throws -> [Connector] { try await get("connectors") }
     public func sessions() async throws -> [Session] { try await get("sessions") }
     public func nodes() async throws -> [Node] { try await get("nodes") }

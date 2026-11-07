@@ -194,3 +194,61 @@ public struct Connector: Sendable, Decodable, Identifiable, Equatable {
     public let connected: Bool
     public var id: String { name }
 }
+
+/// One thing that waits for the owner in the ready feed.
+public struct ReadyItem: Sendable, Decodable, Identifiable, Equatable {
+    public let kind: String
+    public let group: String
+    public let id: String
+    public let title: String
+    public let summary: String?
+    public let agentId: String?
+    public let createdAt: Date
+
+    /// The key the web app uses for the item, `kind:id`.
+    public var key: String { "\(kind):\(id)" }
+    public var route: WebRoute { .readyItem(kind: kind, id: id) }
+}
+
+/// Unresolved alerts per severity.
+public struct AlertCounts: Sendable, Decodable, Equatable {
+    public let critical: Int
+    public let warning: Int
+    public let info: Int
+
+    public init(critical: Int = 0, warning: Int = 0, info: Int = 0) {
+        self.critical = critical
+        self.warning = warning
+        self.info = info
+    }
+
+    public var total: Int { critical + warning + info }
+}
+
+/// Everything that waits for the owner, in one answer.
+public struct ReadyFeed: Sendable, Decodable, Equatable {
+    public let total: Int
+    public let alerts: AlertCounts
+    public let items: [ReadyItem]
+}
+
+/// Something that broke.
+public struct Alert: Sendable, Decodable, Identifiable, Equatable {
+    public let id: UUID
+    public let kind: String
+    public let severity: String
+    public let title: String
+    public let status: String
+    public let count: Int
+    public let lastSeenAt: Date
+
+    public var isCritical: Bool { severity == "critical" }
+    public var route: WebRoute { .alert(id) }
+}
+
+/// A task of the owner's list.
+public struct TaskItem: Sendable, Decodable, Identifiable, Equatable {
+    public let id: UUID
+    public let title: String
+    public let status: String
+}
