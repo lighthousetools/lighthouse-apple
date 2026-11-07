@@ -14,7 +14,14 @@ if (bridge) {
 }
 ```
 
-The app also sets `data-native-shell="mac"` on `<html>` once the page is parsed, and two CSS variables on `:root`:
+The app also sets attributes on `<html>` once the page is parsed:
+
+| Attribute | Meaning |
+|---|---|
+| `data-native-shell="mac"` | The page runs in the Mac window |
+| `data-native-vibrancy="1"` | The window draws the macOS sidebar material behind the page |
+
+And two CSS variables on `:root`:
 
 | Variable | Value | Meaning |
 |---|---|---|
@@ -24,6 +31,28 @@ The app also sets `data-native-shell="mac"` on `<html>` once the page is parsed,
 The web app uses them to keep its rail and sidebar clear of the window buttons and the top strip free for dragging. For
 the older layout of the web app, the app also adds `padding-top: 46px` to `.layout > .sidebar`; the current layout does
 not match that rule.
+
+## Vibrancy
+
+The web view draws no background of its own. Behind it the window has an `NSVisualEffectView` with the sidebar material,
+blended with what lies behind the window, so the desktop shows through like in the sidebar of Finder or Mail. It follows
+light and dark mode and dims while the window is inactive.
+
+With `data-native-vibrancy="1"` the web app should leave its shell background transparent: no sky, gradient or opaque
+fill behind the rail and the sidebar, so the material shows there. The content stays a floating, rounded, opaque panel.
+Every pixel the page paints covers the material, so translucent fills tint it rather than replace it.
+
+## Organizations and the session pill
+
+In the Mac window the web app hides its top menu bar, and with it the company selector and the session pill. The web app
+shows both in the sidebar header instead. The app adds a native **Company** menu to the menu bar as well: it lists
+"All companies" and every organization from `GET /organizations`, with a check mark on the one the web app shows.
+
+- A choice in the menu reaches the web app as the command `org` (see below). The web app switches and confirms with the
+  `org` message.
+- Whenever the organization changes in the web app, it sends `org`, so the menu follows.
+- The app remembers the choice and writes it to `localStorage["lighthouse.org"]` before each load, because the web view
+  stores nothing between launches.
 
 ## Messages from the web app
 
@@ -41,6 +70,7 @@ bridge.postMessage({ type: "notify", id: "approval:<id>", title: "Send the weekl
 | `notify` | `title` (required, up to 200 characters), `body?` (up to 1000), `route?` (a hash such as `#ready/approval:<id>`), `id?` | Shows a native notification. A click brings the window to the front at `route`. The same `id` replaces an earlier notification. |
 | `badge` | `count` (whole number, clamped to 0 to 9999) | Sets the number on the Dock icon; `0` removes it. Once the web app sends a badge, it wins over the app's own count, which is the ready total as well. |
 | `openExternal` | `url` (`http`, `https` or `mailto`) | Opens the link in the default browser. |
+| `org` | `id` (an organization ID of lowercase letters, digits and dashes; `""`, `null` or missing for all) | The organization the web app shows now. Send it at start and on every change. |
 
 The web view never leaves the server's origin. Links to other sites, `target="_blank"` and `window.open` open in the
 default browser anyway; `openExternal` only makes the intent explicit.
@@ -63,6 +93,9 @@ addEventListener("lighthouse:command", (event) => {
 |---|---|---|
 | `palette` | ⌘K | A synthetic `keydown` of ⌘K on `window` |
 | `newNote` | ⌘N | `location.hash = "#brain/new"` |
+| `org` | Company menu | Writes `localStorage["lighthouse.org"]` and reloads |
+
+The `org` command carries the organization in the detail: `{ command: "org", type: "org", id: "<id or empty for all>" }`.
 
 Routes do not need an event. The app sets `location.hash`, as the web app's own router expects:
 
@@ -106,7 +139,8 @@ The app keeps the device token in the Keychain. Before any script of the page ru
 view stores nothing on disk, so the token is handed over again with each load. This script runs in a content world of its
 own: the page cannot see it or send its messages.
 
-That script also watches the two keys. When the web app removes the token, because the owner signed out or the server
+That script also writes the remembered organization to `localStorage["lighthouse.org"]`, and watches the token and
+language keys. When the web app removes the token, because the owner signed out or the server
 refused it, the app signs out as well and shows its native sign-in. A language chosen in the web app becomes the app's
 language.
 
