@@ -79,6 +79,13 @@ public final class AppModel {
     /// Requests that need a decision.
     public var pendingCount: Int { approvals.count + permissions.count }
 
+    /// The token the web app of the Mac window signs in with. It stays in the
+    /// Keychain and in memory, never in a file of the web view.
+    public var webToken: String? { phase == .ready ? token : nil }
+
+    /// The server as a URL, once one is set.
+    public var serverURL: URL? { try? Client.serverURL(from: serverAddress) }
+
     /// A client for the current server, for views that load their own data.
     public var client: Client? {
         guard let url = try? Client.serverURL(from: serverAddress) else { return nil }
