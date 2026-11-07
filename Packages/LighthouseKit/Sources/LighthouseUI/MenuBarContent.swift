@@ -26,9 +26,8 @@
             }
         }
 
-        private func open(_ section: Section, route: WebRoute? = nil) {
-            navigator.section = section
-            navigator.open(route ?? section.webRoute)
+        private func open(_ route: WebRoute) {
+            navigator.open(route)
             openWindow(id: "main")
             NSApplication.shared.activate()
         }
@@ -133,23 +132,11 @@
                     Text(tr("Sign in in the main window.")).font(Theme.body(13)).foregroundStyle(Theme.ink2)
                 } else {
                     Divider().overlay(Theme.line)
-                    if model.pendingCount == 0 && model.waitingSessions.isEmpty {
+                    if model.pendingCount == 0 && model.waitingSessions.isEmpty && model.criticalAlerts.isEmpty {
                         line(Theme.ok, tr("All quiet"), "")
                     }
                     ForEach(model.permissions) { request($0) }
-                    if !model.approvals.isEmpty {
-                        Button {
-                            let only = model.approvals.count == 1 ? model.approvals.first : nil
-                            open(.approvals, route: only.map { WebRoute.approval($0.id) })
-                        } label: {
-                            line(
-                                Theme.lamp,
-                                model.approvals.count == 1
-                                    ? tr("1 approval") : tr("%@ approvals", String(model.approvals.count)),
-                                tr("Open"))
-                        }
-                        .buttonStyle(.plain)
-                    }
+                    AttentionSummary { route in open(route) }
                     ForEach(model.sessions.filter { $0.status != "done" }.prefix(4), id: \.rowID) { session in
                         line(sessionColor(session.status), session.project, statusName(session.status))
                     }

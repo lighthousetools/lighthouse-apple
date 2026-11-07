@@ -170,36 +170,69 @@ extension View {
     }
 }
 
-/// A small window for a thought, reachable from anywhere.
+/// A small window for a thought or a task, reachable from anywhere. On top it
+/// shows what waits, so a glance is enough.
 public struct QuickCaptureView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
+    @State private var kind = QuickEntryKind.note
     @State private var failure: String?
+    @State private var busy = false
     @FocusState private var focused: Bool
+    private let open: ((WebRoute) -> Void)?
 
-    public init() {
+    /// `open` shows a place of the web app; without it the summary stays hidden.
+    public init(open: ((WebRoute) -> Void)? = nil) {
         LighthouseFonts.register()
+        self.open = open
     }
 
     private func save() async {
-        let lines = text.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
-        let title = String((lines.first ?? "").prefix(80))
+        let entry = QuickEntry(text: text)
+        guard !entry.isEmpty else { return }
+        busy = true
+        defer { busy = false }
         do {
-            _ = try await model.client?.createNote(
-                title: title, body: lines.count > 1 ? String(lines[1]) : "")
+            switch kind {
+            case .note:
+                _ = try await model.client?.createNote(title: entry.title, body: entry.body)
+            case .task:
+                try await model.createTask(title: entry.title, notes: entry.body)
+            }
             text = ""
+            failure = nil
             dismiss()
         } catch {
             failure = error.localizedDescription
         }
     }
 
+    private var hasSummary: Bool {
+        open != nil && (model.pendingCount > 0 || !model.criticalAlerts.isEmpty)
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            if let open, hasSummary {
+                AttentionSummary(limit: 2) { route in
+                    open(route)
+                    dismiss()
+                }
+                Divider().overlay(Theme.line)
+            }
+            Picker(tr("Kind"), selection: $kind) {
+                Text(tr("Note")).tag(QuickEntryKind.note)
+                Text(tr("Task")).tag(QuickEntryKind.task)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
             ZStack(alignment: .topLeading) {
                 if text.isEmpty {
-                    Text(tr("Capture a thought…")).font(Theme.body(15)).foregroundStyle(Theme.ink3)
+                    Text(tr(kind == .note ? "Capture a thought…" : "What needs doing?"))
+                        .font(Theme.body(15))
+                        .foregroundStyle(Theme.ink3)
                         .padding(.leading, 5)
                 }
                 TextEditor(text: $text)
@@ -207,20 +240,22 @@ public struct QuickCaptureView: View {
                     .scrollContentBackground(.hidden)
                     .focused($focused)
             }
+            .frame(height: 110)
             if let failure { Text(failure).font(Theme.body(12.5)).foregroundStyle(Theme.crit) }
             HStack {
                 Spacer()
                 Button(tr("Cancel")) { dismiss() }
                     .buttonStyle(QuietButtonStyle())
                     .keyboardShortcut(.cancelAction)
-                Button(tr("Save")) { Task { await save() } }
+                Button(tr(kind == .note ? "Save" : "New task")) { Task { await save() } }
                     .buttonStyle(LampButtonStyle())
                     .keyboardShortcut(.return, modifiers: .command)
-                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(busy || QuickEntry(text: text).isEmpty)
             }
         }
         .padding(14)
-        .frame(width: 420, height: 210)
+        .frame(width: 420)
+        .fixedSize(horizontal: false, vertical: true)
         .background(Theme.surface)
         .tint(Theme.lamp)
         .onAppear { focused = true }

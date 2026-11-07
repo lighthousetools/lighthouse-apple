@@ -26,7 +26,7 @@ public enum Section: String, CaseIterable, Identifiable, Sendable {
 
     /// The same area in the web app.
     public var webRoute: WebRoute {
-        WebRoute(WebArea(rawValue: rawValue.lowercased()) ?? .today)
+        WebRoute(hash: rawValue.lowercased())
     }
 
     @ViewBuilder @MainActor var content: some View {
