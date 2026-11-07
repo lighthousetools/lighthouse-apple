@@ -67,6 +67,9 @@ final class WebShell: NSObject {
         controller.add(handler, contentWorld: Self.world, name: Bridge.shellHandlerName)
     }
 
+    /// Whether the web app is loaded and announces new ready items itself.
+    var webAnnounces: Bool { webAdopted && status == .ready }
+
     /// The route the window showed last.
     var lastRoute: WebRoute {
         WebRoute(hash: defaults.string(forKey: Self.routeKey) ?? "")

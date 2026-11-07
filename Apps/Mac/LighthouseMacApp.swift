@@ -20,7 +20,8 @@ struct LighthouseMacApp: App {
         .commands { LighthouseCommands(model: delegate.model, navigator: delegate.navigator, shell: delegate.shell) }
 
         Window(tr("Quick note"), id: "capture") {
-            QuickCaptureView().environment(delegate.model)
+            QuickCaptureView { route in delegate.navigator.open(route) }
+                .environment(delegate.model)
         }
         .windowResizability(.contentSize)
         .windowLevel(.floating)
@@ -45,6 +46,13 @@ struct MenuBarLabel: View {
     private var model: AppModel { delegate.model }
     private var navigator: Navigator { delegate.navigator }
 
+    /// Changes whenever something to announce comes or goes.
+    private var attentionKeys: [String] {
+        (model.readyFeed?.items.map(\.key) ?? [])
+            + model.approvals.map(\.id.uuidString) + model.permissions.map(\.id.uuidString)
+            + model.alerts.map(\.id.uuidString) + [String(model.pendingCount)]
+    }
+
     var body: some View {
         HStack(spacing: 3) {
             Image(nsImage: MenuBarIcon.image)
@@ -58,7 +66,7 @@ struct MenuBarLabel: View {
             delegate.requestsChanged()
             if model.phase == .ready { await model.keepFresh() }
         }
-        .onChange(of: model.approvals.map(\.id) + model.permissions.map(\.id)) {
+        .onChange(of: attentionKeys) {
             delegate.requestsChanged()
         }
         .onChange(of: navigator.showsCapture) {
@@ -109,29 +117,20 @@ struct LighthouseCommands: Commands {
             Button(tr("Search actions")) { shell.send(.palette) }
                 .keyboardShortcut("k")
             Divider()
-            ForEach(Array(WebArea.allCases.enumerated()), id: \.offset) { index, area in
-                Button(tr(area.title)) { show(WebRoute(area)) }
-                    .keyboardShortcut(KeyEquivalent(Character(String(index + 1))))
+            ForEach(1...9, id: \.self) { number in
+                if let route = WebRoute.shortcut(number) {
+                    Button(tr(route.area.title)) { show(route) }
+                        .keyboardShortcut(KeyEquivalent(Character(String(number))))
+                }
+            }
+            Menu(tr("More")) {
+                ForEach(WebArea.allCases.dropFirst(9), id: \.self) { area in
+                    Button(tr(area.title)) { show(WebRoute(area)) }
+                }
             }
             Divider()
             Button(tr("Change server…")) { Task { await model.signOut() } }
                 .disabled(model.phase != .ready)
-        }
-    }
-}
-
-extension WebArea {
-    /// The English name, translated with `tr`.
-    var title: String {
-        switch self {
-        case .today: "Today"
-        case .approvals: "Approvals"
-        case .sessions: "Sessions"
-        case .agents: "Agents"
-        case .brain: "Brain"
-        case .weekly: "Weekly report"
-        case .log: "Log"
-        case .settings: "Settings"
         }
     }
 }

@@ -50,8 +50,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             tracker = RequestTracker()
             return
         }
-        for notice in tracker.notices(approvals: model.approvals, permissions: model.permissions) {
-            notify(id: notice.id.uuidString, title: notice.title, body: notice.body, route: notice.route)
+        let candidates = RequestNotice.candidates(
+            ready: model.readyFeed, approvals: model.approvals, permissions: model.permissions,
+            alerts: model.alerts)
+        // While the web app runs and uses the bridge, it announces ready items
+        // itself, with the same keys; the app adds what it does not announce.
+        let webAnnounces = shell.webAnnounces
+        for notice in tracker.fresh(candidates) where !(webAnnounces && notice.webAnnounces) {
+            notify(id: notice.key, title: notice.title, body: notice.body, route: notice.route)
         }
         updateBadge()
     }
