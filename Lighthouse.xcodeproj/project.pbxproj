@@ -7,18 +7,24 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		22E7F47552AB84A8A39BA429 /* WebShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01C0472D0FEA1F0C62C19653 /* WebShell.swift */; };
 		384D87458D29D0644758EFE7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA2CADE63561177F1B3578A2 /* Assets.xcassets */; };
 		69D94D604B3269CA9C844D31 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B0D87E9D0C2E7A75C0AE3D17 /* Assets.xcassets */; };
 		6F410737FD0190E104DE4A19 /* LighthouseUI in Frameworks */ = {isa = PBXBuildFile; productRef = 814F6CF3EE0DF47A79787108 /* LighthouseUI */; };
 		717AE4AC2750FF015FDCC5CF /* LighthouseApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B0F80E60DFD60B27678FA7 /* LighthouseApp.swift */; };
+		82788F57065F4244832E6E7B /* MainWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4261B5C10702260E9F3F9AC4 /* MainWindow.swift */; };
 		95B648F28AC18097DFBE8599 /* LighthouseKit in Frameworks */ = {isa = PBXBuildFile; productRef = F76A94CF0184835D548E1182 /* LighthouseKit */; };
 		A05B044F5BB501C9B8FA19EF /* LighthouseUI in Frameworks */ = {isa = PBXBuildFile; productRef = 81550F8B82DB54B6F3F06805 /* LighthouseUI */; };
+		D1393818DA7195D549322847 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CAD30EDACB38372EFA5EE36 /* AppDelegate.swift */; };
 		DAD5728F26249BDFB88DA807 /* LighthouseKit in Frameworks */ = {isa = PBXBuildFile; productRef = 13C51B553D7037A19554DED2 /* LighthouseKit */; };
 		EA595C6064F644EF952BF038 /* LighthouseMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C298A2DC4FCD7AFFD82233C /* LighthouseMacApp.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		01C0472D0FEA1F0C62C19653 /* WebShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebShell.swift; sourceTree = "<group>"; };
+		1CAD30EDACB38372EFA5EE36 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		3A13E1FFED5BF759CC20DE08 /* LighthouseMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LighthouseMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4261B5C10702260E9F3F9AC4 /* MainWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindow.swift; sourceTree = "<group>"; };
 		4700FC930212741E667BC5FC /* Lighthouse.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Lighthouse.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4C298A2DC4FCD7AFFD82233C /* LighthouseMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LighthouseMacApp.swift; sourceTree = "<group>"; };
 		725E30E325960DF40EF5D423 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -86,10 +92,13 @@
 		994A04ECADBD1967C1BDFA66 /* Mac */ = {
 			isa = PBXGroup;
 			children = (
+				1CAD30EDACB38372EFA5EE36 /* AppDelegate.swift */,
 				EA2CADE63561177F1B3578A2 /* Assets.xcassets */,
 				D37B776E9137D0D3CEF745E5 /* Info.plist */,
 				B820D48710A94FCFB6ABE27A /* Lighthouse.entitlements */,
 				4C298A2DC4FCD7AFFD82233C /* LighthouseMacApp.swift */,
+				4261B5C10702260E9F3F9AC4 /* MainWindow.swift */,
+				01C0472D0FEA1F0C62C19653 /* WebShell.swift */,
 			);
 			name = Mac;
 			path = Apps/Mac;
@@ -230,7 +239,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D1393818DA7195D549322847 /* AppDelegate.swift in Sources */,
 				EA595C6064F644EF952BF038 /* LighthouseMacApp.swift in Sources */,
+				82788F57065F4244832E6E7B /* MainWindow.swift in Sources */,
+				22E7F47552AB84A8A39BA429 /* WebShell.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

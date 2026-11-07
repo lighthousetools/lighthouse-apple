@@ -5,44 +5,45 @@ import SwiftUI
 
 @main
 struct LighthouseMacApp: App {
-    @State private var model = AppModel(
-        deviceName: Host.current().localizedName ?? "Mac", deviceKind: "mac")
-    @State private var navigator = Navigator()
+    @NSApplicationDelegateAdaptor private var delegate: AppDelegate
 
     var body: some Scene {
         Window("Lighthouse", id: "main") {
-            RootView()
-                .environment(model)
-                .environment(navigator)
-                .frame(minWidth: 960, minHeight: 620)
+            MainWindow()
+                .environment(delegate.model)
+                .environment(delegate.navigator)
+                .environment(delegate.shell)
         }
+        .windowStyle(.hiddenTitleBar)
+        .windowToolbarStyle(.unified(showsTitle: false))
         .defaultSize(width: 1240, height: 800)
-        .commands { LighthouseCommands(navigator: navigator) }
+        .commands { LighthouseCommands(model: delegate.model, navigator: delegate.navigator, shell: delegate.shell) }
 
         Window(tr("Quick note"), id: "capture") {
-            QuickCaptureView().environment(model)
+            QuickCaptureView().environment(delegate.model)
         }
         .windowResizability(.contentSize)
         .windowLevel(.floating)
 
         MenuBarExtra {
             MenuBarContent()
-                .environment(model)
-                .environment(navigator)
-                .task { await model.keepFresh() }
+                .environment(delegate.model)
+                .environment(delegate.navigator)
         } label: {
-            MenuBarLabel(model: model, navigator: navigator)
+            MenuBarLabel(delegate: delegate)
         }
         .menuBarExtraStyle(.window)
     }
 }
 
-/// The menu bar item. It stays alive with the app, so it also takes the
-/// global shortcut.
+/// The menu bar item. It stays alive with the app, so it keeps the connection
+/// to the server, takes the global shortcut and opens the main window on request.
 struct MenuBarLabel: View {
-    let model: AppModel
-    let navigator: Navigator
+    let delegate: AppDelegate
     @Environment(\.openWindow) private var openWindow
+
+    private var model: AppModel { delegate.model }
+    private var navigator: Navigator { delegate.navigator }
 
     var body: some View {
         HStack(spacing: 3) {
@@ -53,33 +54,84 @@ struct MenuBarLabel: View {
             GlobalShortcut.shared.onPress = { navigator.showsCapture = true }
             GlobalShortcut.shared.register()
         }
+        .task(id: model.phase) {
+            delegate.requestsChanged()
+            if model.phase == .ready { await model.keepFresh() }
+        }
+        .onChange(of: model.approvals.map(\.id) + model.permissions.map(\.id)) {
+            delegate.requestsChanged()
+        }
         .onChange(of: navigator.showsCapture) {
             guard navigator.showsCapture else { return }
             openWindow(id: "capture")
             NSApplication.shared.activate()
             navigator.showsCapture = false
         }
+        .onChange(of: navigator.requestedRoute) {
+            guard let route = navigator.requestedRoute else { return }
+            navigator.requestedRoute = nil
+            delegate.shell.open(route)
+            openWindow(id: "main")
+            NSApplication.shared.activate()
+        }
     }
 }
 
 struct LighthouseCommands: Commands {
+    let model: AppModel
     let navigator: Navigator
+    let shell: WebShell
+    @Environment(\.openWindow) private var openWindow
+
+    private func show(_ route: WebRoute) {
+        navigator.open(route)
+    }
 
     var body: some Commands {
+        CommandGroup(replacing: .appSettings) {
+            Button(tr("Settings…")) { show(WebRoute(.settings)) }
+                .keyboardShortcut(",")
+                .disabled(model.phase != .ready)
+        }
         CommandGroup(replacing: .newItem) {
-            Button(tr("New note")) { navigator.newNote() }
+            Button(tr("New note")) { shell.send(.newNote) }
                 .keyboardShortcut("n")
+                .disabled(model.phase != .ready)
             Button(tr("Quick note")) { navigator.showsCapture = true }
                 .keyboardShortcut("l", modifiers: [.command, .option])
         }
+        CommandGroup(after: .toolbar) {
+            Button(tr("Reload")) { shell.reload() }
+                .keyboardShortcut("r")
+                .disabled(model.phase != .ready)
+        }
         CommandMenu("Lighthouse") {
-            Button(tr("Search actions")) { navigator.showsPalette = true }
+            Button(tr("Search actions")) { shell.send(.palette) }
                 .keyboardShortcut("k")
             Divider()
-            ForEach(Array(Section.allCases.enumerated()), id: \.offset) { index, section in
-                Button(section.title) { navigator.section = section }
+            ForEach(Array(WebArea.allCases.enumerated()), id: \.offset) { index, area in
+                Button(tr(area.title)) { show(WebRoute(area)) }
                     .keyboardShortcut(KeyEquivalent(Character(String(index + 1))))
             }
+            Divider()
+            Button(tr("Change server…")) { Task { await model.signOut() } }
+                .disabled(model.phase != .ready)
+        }
+    }
+}
+
+extension WebArea {
+    /// The English name, translated with `tr`.
+    var title: String {
+        switch self {
+        case .today: "Today"
+        case .approvals: "Approvals"
+        case .sessions: "Sessions"
+        case .agents: "Agents"
+        case .brain: "Brain"
+        case .weekly: "Weekly report"
+        case .log: "Log"
+        case .settings: "Settings"
         }
     }
 }
