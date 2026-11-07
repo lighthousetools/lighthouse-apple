@@ -279,3 +279,29 @@ struct QuickEntryTests {
         #expect(QuickEntry(text: String(repeating: "x", count: 100)).title.count == 80)
     }
 }
+
+struct OrganizationBridgeTests {
+    @Test func theWebAppReportsItsOrganization() throws {
+        #expect(try BridgeMessage.parse(["type": "org", "id": "acme-ltd"]) == .org("acme-ltd"))
+        #expect(try BridgeMessage.parse(["type": "org", "id": ""]) == .org(""))
+        #expect(try BridgeMessage.parse(["type": "org"]) == .org(""))
+        #expect(try BridgeMessage.parse(["type": "org", "id": NSNull()]) == .org(""))
+        for bad: Any in ["Acme", "a b", "x\"); alert(1)", 3, String(repeating: "a", count: 65)] {
+            #expect(throws: BridgeError.invalid("id")) { try BridgeMessage.parse(["type": "org", "id": bad]) }
+        }
+    }
+
+    @Test func theOrganizationCommandCarriesItsID() {
+        let script = ShellScript.command(.org("globex"))
+        #expect(script.contains(#"command: "org", type: "org", id: "globex""#))
+        #expect(script.contains("location.reload()"))
+        #expect(BridgeCommand.palette.name == "palette")
+    }
+
+    @Test func theOrganizationAndVibrancyReachThePage() {
+        let start = ShellScript.documentStart(origin: "http://h", token: nil, language: .english, org: "acme")
+        #expect(start.contains(#"const org = "acme";"#))
+        #expect(ShellScript.documentEnd(origin: "http://h", vibrancy: true).contains(#"nativeVibrancy = "1""#))
+        #expect(!ShellScript.documentEnd(origin: "http://h").contains("nativeVibrancy"))
+    }
+}

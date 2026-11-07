@@ -260,6 +260,7 @@ public struct Client: Sendable {
 
     public func me() async throws -> Me { try await get("me") }
     public func ready() async throws -> ReadyFeed { try await get("ready") }
+    public func organizations() async throws -> [Organization] { try await get("organizations") }
     public func alertCounts() async throws -> AlertCounts { try await get("alerts/counts") }
 
     /// Unresolved alerts, worst first.

@@ -31,6 +31,8 @@ public final class AppModel {
     /// Whether a refresh has succeeded since sign-in, so that what is already
     /// waiting is not mistaken for something new.
     public private(set) var hasLoaded = false
+    /// The organizations, from servers that know them.
+    public private(set) var organizations: [Organization] = []
     public private(set) var serverAddress: String
     public var language: Language {
         didSet {
@@ -96,7 +98,7 @@ public final class AppModel {
     public nonisolated static func refreshes(on event: String) -> Bool {
         let relevant: Set<String> = [
             "changed", "ready.changed", "alert.raised", "alerts.changed", "tasks.changed",
-            "sessions.changed", "run.waiting", "run.finished",
+            "sessions.changed", "run.waiting", "run.finished", "organizations.changed",
         ]
         return relevant.contains(event)
     }
@@ -150,6 +152,7 @@ public final class AppModel {
         alertCounts = AlertCounts()
         alerts = []
         hasLoaded = false
+        organizations = []
         phase = .signedOut
     }
 
@@ -210,9 +213,11 @@ public final class AppModel {
         async let feed = try? client.ready()
         async let counts = try? client.alertCounts()
         async let active = try? client.activeAlerts()
+        async let organizations = try? client.organizations()
         readyFeed = await feed
         alertCounts = await counts ?? readyFeed?.alerts ?? AlertCounts()
         alerts = await active ?? []
+        self.organizations = await organizations ?? []
     }
 
     /// Creates a task at the top of the owner's list.

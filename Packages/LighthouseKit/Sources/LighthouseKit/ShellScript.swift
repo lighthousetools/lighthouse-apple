@@ -6,6 +6,7 @@ public enum ShellScript {
     /// The keys under which the web app keeps its sign-in and its language.
     public static let tokenKey = "lighthouse.token"
     public static let languageKey = "lighthouse.language"
+    public static let orgKey = "lighthouse.org"
     /// The height of the strip at the top that moves the window, in points.
     public static let dragStrip = 28
 
@@ -21,7 +22,9 @@ public enum ShellScript {
 
     /// Runs before any script of the page. Hands over the token from the
     /// Keychain, so the owner signs in once, and reports what the window keeps.
-    public static func documentStart(origin: String, token: String?, language: Language) -> String {
+    public static func documentStart(
+        origin: String, token: String?, language: Language, org: String = ""
+    ) -> String {
         """
         (() => {
           const origin = \(literal(origin));
@@ -35,6 +38,8 @@ public enum ShellScript {
           try {
             if (token !== null && read(\(literal(tokenKey))) !== token) localStorage.setItem(\(literal(tokenKey)), token);
             localStorage.setItem(\(literal(languageKey)), language);
+            const org = \(literal(org));
+            if (org) localStorage.setItem(\(literal(orgKey)), org); else localStorage.removeItem(\(literal(orgKey)));
           } catch {}
           let lastToken = read(\(literal(tokenKey)));
           let lastLanguage = language;
@@ -67,11 +72,14 @@ public enum ShellScript {
 
     /// Runs once the page is parsed. Marks the document as running in the Mac
     /// app and keeps the sidebar clear of the window buttons.
-    public static func documentEnd(origin: String) -> String {
+    /// With `vibrancy`, the window draws the sidebar material behind a
+    /// transparent page, and the page should leave its shell background clear.
+    public static func documentEnd(origin: String, vibrancy: Bool = false) -> String {
         """
         (() => {
           if (location.origin !== \(literal(origin))) return;
           document.documentElement.dataset.nativeShell = "mac";
+          \(vibrancy ? #"document.documentElement.dataset.nativeVibrancy = "1";"# : "")
           const style = document.createElement("style");
           style.textContent = `\(css)`;
           document.head.appendChild(style);
@@ -94,10 +102,16 @@ public enum ShellScript {
                 #"window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true, cancelable: true }));"#
         case .newNote:
             fallback = ##"location.hash = "#brain/new";"##
+        case .org(let id):
+            fallback = """
+                try { if (\(literal(id))) localStorage.setItem(\(literal(orgKey)), \(literal(id))); else localStorage.removeItem(\(literal(orgKey))); } catch {} location.reload();
+                """
         }
+        var detail = "command: \(literal(command.name))"
+        if case .org(let id) = command { detail += ", type: \(literal("org")), id: \(literal(id))" }
         return """
             (() => {
-              const event = new CustomEvent(\(literal(Bridge.commandEvent)), { detail: { command: \(literal(command.rawValue)) }, cancelable: true });
+              const event = new CustomEvent(\(literal(Bridge.commandEvent)), { detail: { \(detail) }, cancelable: true });
               if (window.dispatchEvent(event)) { \(fallback) }
             })();
             """

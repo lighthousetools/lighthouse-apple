@@ -171,6 +171,8 @@ let germanStrings: [String: String] = [
     "Task": "Aufgabe",
     "Kind": "Art",
     "More": "Mehr",
+    "Company": "Firma",
+    "All companies": "Alle Firmen",
     "Table": "Tabelle",
     "Code": "Code",
     "Quote": "Zitat",

@@ -252,3 +252,11 @@ public struct TaskItem: Sendable, Decodable, Identifiable, Equatable {
     public let title: String
     public let status: String
 }
+
+/// A company or other organization the owner works for. Lists and numbers
+/// in the web app can show one of them.
+public struct Organization: Sendable, Decodable, Identifiable, Equatable {
+    public let id: String
+    public let name: String
+    public let color: String?
+}

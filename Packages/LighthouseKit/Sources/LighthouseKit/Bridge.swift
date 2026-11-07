@@ -36,6 +36,8 @@ public enum BridgeMessage: Equatable, Sendable {
     case openExternal(URL)
     /// The web app has adopted the bridge and handles commands itself.
     case ready(version: Int)
+    /// The organization the web app shows now, or "" for all of them.
+    case org(String)
 
     /// Reads the body of a script message, which WebKit delivers as a dictionary.
     public static func parse(_ body: Any) throws -> BridgeMessage {
@@ -66,6 +68,13 @@ public enum BridgeMessage: Equatable, Sendable {
             return .openExternal(url)
         case "ready":
             return .ready(version: integer(object["v"]) ?? Bridge.version)
+        case "org":
+            // A missing or null ID means all organizations.
+            let value = object["id"]
+            let id: String?
+            if value == nil || value is NSNull { id = "" } else { id = value as? String }
+            guard let id, OrganizationID.isValid(id) else { throw BridgeError.invalid("id") }
+            return .org(id)
         default:
             throw BridgeError.unknownType(type)
         }
@@ -126,9 +135,28 @@ public enum ShellMessage: Equatable, Sendable {
 }
 
 /// A command the Mac app sends to the web app.
-public enum BridgeCommand: String, Sendable, CaseIterable {
+public enum BridgeCommand: Equatable, Sendable {
     case palette
     case newNote
+    /// Shows one organization, or all of them for an empty ID.
+    case org(String)
+
+    public var name: String {
+        switch self {
+        case .palette: "palette"
+        case .newNote: "newNote"
+        case .org: "org"
+        }
+    }
+}
+
+/// The IDs of organizations: lowercase letters, digits and dashes. Empty means all.
+public enum OrganizationID {
+    public static func isValid(_ id: String) -> Bool {
+        id.count <= 64 && id.unicodeScalars.allSatisfy {
+            ("a"..."z").contains($0) || ("0"..."9").contains($0) || $0 == "-"
+        }
+    }
 }
 
 /// Links that leave the app.
