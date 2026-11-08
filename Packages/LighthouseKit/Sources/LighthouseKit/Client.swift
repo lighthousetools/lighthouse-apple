@@ -4,6 +4,8 @@ import Foundation
 public enum ClientError: Error, Equatable, LocalizedError {
     case invalidAddress
     case unauthorized
+    /// The role in this tenant does not allow it, with the server's reason.
+    case forbidden(String)
     case server(status: Int, message: String)
     case unreadableAnswer
 
@@ -11,6 +13,7 @@ public enum ClientError: Error, Equatable, LocalizedError {
         switch self {
         case .invalidAddress: "That is not a valid server address."
         case .unauthorized: "Please sign in again."
+        case .forbidden(let message): message
         case .server(_, let message): message
         case .unreadableAnswer: "The server sent an unexpected answer."
         }
@@ -128,6 +131,9 @@ public struct Client: Sendable {
         if http.statusCode == 401, token != nil { throw ClientError.unauthorized }
         guard (200..<300).contains(http.statusCode) else {
             let message = (try? Self.decoder.decode(ServerError.self, from: data))?.error
+            if http.statusCode == 403, token != nil {
+                throw ClientError.forbidden(message ?? "Only owners and admins of this team can do that.")
+            }
             throw ClientError.server(
                 status: http.statusCode, message: message ?? "The server answered \(http.statusCode).")
         }
@@ -233,17 +239,43 @@ public struct Client: Sendable {
         }
     }
 
+    /// Missing optionals stay out of the body, as servers before 0.2 expect.
     private struct Login: Encodable {
+        let email: String?
         let password: String
+        let device_name: String
+        let device_kind: String
+        let tenant_id: String?
+    }
+
+    private struct Device: Encodable {
         let device_name: String
         let device_kind: String
     }
 
     public func authStatus() async throws -> AuthStatus { try await get("auth/status") }
 
-    public func login(password: String, device: String, kind: String) async throws -> TokenIssued {
+    /// Signs in. Without an email, only a server with a single user accepts it;
+    /// without a tenant, the token is bound to the user's oldest membership.
+    public func login(
+        email: String? = nil, password: String, device: String, kind: String, tenant: UUID? = nil
+    ) async throws -> TokenIssued {
+        let email = email?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return try await post(
+            "auth/login",
+            Login(
+                email: email?.isEmpty == false ? email : nil, password: password, device_name: device,
+                device_kind: kind, tenant_id: tenant?.uuidString.lowercased()))
+    }
+
+    /// The tenants the user belongs to.
+    public func tenants() async throws -> [Membership] { try await get("tenants") }
+
+    /// A new token bound to another tenant of the user. The current one stays
+    /// valid until it signs out.
+    public func switchTenant(to id: UUID, device: String, kind: String) async throws -> TokenIssued {
         try await post(
-            "auth/login", Login(password: password, device_name: device, device_kind: kind))
+            "tenants/\(id.uuidString.lowercased())/switch", Device(device_name: device, device_kind: kind))
     }
 
     public func logout() async throws { _ = try await data("POST", "auth/logout") }

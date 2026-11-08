@@ -69,13 +69,82 @@ public enum JSONValue: Sendable, Equatable, Codable {
     }
 }
 
-public struct AuthStatus: Sendable, Decodable {
-    public let setupRequired: Bool
+/// Who may create an account on a server.
+public enum SignupMode: String, Sendable, Equatable {
+    /// Nobody signs up and nobody is invited, as in a single-user install.
+    case closed
+    /// Owners and admins invite people by email.
+    case invite
+    /// Anyone signs up and owns a new tenant.
+    case open
 }
 
+/// What a server needs for a sign-in. Servers before 0.2 only send
+/// `setup_required`, so the rest falls back to a single-user install.
+public struct AuthStatus: Sendable, Decodable, Equatable {
+    public let setupRequired: Bool
+    public let signup: SignupMode
+    /// Whether the sign-in needs an email address: once the server has more than one user.
+    public let emailRequired: Bool
+
+    public init(setupRequired: Bool = false, signup: SignupMode = .closed, emailRequired: Bool = false) {
+        self.setupRequired = setupRequired
+        self.signup = signup
+        self.emailRequired = emailRequired
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case setupRequired, signup, emailRequired
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        setupRequired = try container.decodeIfPresent(Bool.self, forKey: .setupRequired) ?? false
+        let mode = try container.decodeIfPresent(String.self, forKey: .signup)
+        signup = mode.flatMap(SignupMode.init(rawValue:)) ?? .closed
+        emailRequired = try container.decodeIfPresent(Bool.self, forKey: .emailRequired) ?? false
+    }
+}
+
+/// A new device token. `tenantId` and `userId` come from servers since 0.2.
 public struct TokenIssued: Sendable, Decodable {
     public let id: UUID
     public let token: String
+    public let tenantId: UUID?
+    public let userId: UUID?
+}
+
+/// The role of a user in a tenant.
+public enum Role: String, Sendable, Equatable, Decodable {
+    case owner, admin, member
+
+    /// Owners and admins change credentials, connections and the budget.
+    public var canAdminister: Bool { self != .member }
+}
+
+/// A tenant the user belongs to.
+public struct Membership: Sendable, Decodable, Equatable, Identifiable {
+    public let tenantId: UUID
+    public let tenantName: String
+    public let role: Role?
+    public var id: UUID { tenantId }
+
+    private enum CodingKeys: String, CodingKey {
+        case tenantId, tenantName, role
+    }
+
+    public init(tenantId: UUID, tenantName: String, role: Role?) {
+        self.tenantId = tenantId
+        self.tenantName = tenantName
+        self.role = role
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        tenantId = try container.decode(UUID.self, forKey: .tenantId)
+        tenantName = try container.decode(String.self, forKey: .tenantName)
+        role = (try? container.decodeIfPresent(String.self, forKey: .role)).flatMap { $0.flatMap(Role.init) }
+    }
 }
 
 public struct Approval: Sendable, Decodable, Identifiable, Equatable {
@@ -184,8 +253,31 @@ public struct DailyCost: Sendable, Decodable, Equatable {
     public let costEur: Double
 }
 
+/// The signed-in user in the tenant of the token. Servers before 0.2 only send the name.
 public struct Me: Sendable, Decodable, Equatable {
     public let name: String
+    public let email: String?
+    public let emailVerified: Bool?
+    public let userId: UUID?
+    public let tenantId: UUID?
+    public let tenantName: String?
+    /// Nil on servers before 0.2, where the only person is the owner.
+    public let role: Role?
+
+    private enum CodingKeys: String, CodingKey {
+        case name, email, emailVerified, userId, tenantId, tenantName, role
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        email = try container.decodeIfPresent(String.self, forKey: .email)
+        emailVerified = try container.decodeIfPresent(Bool.self, forKey: .emailVerified)
+        userId = try container.decodeIfPresent(UUID.self, forKey: .userId)
+        tenantId = try container.decodeIfPresent(UUID.self, forKey: .tenantId)
+        tenantName = try container.decodeIfPresent(String.self, forKey: .tenantName)
+        role = (try? container.decodeIfPresent(String.self, forKey: .role)).flatMap { $0.flatMap(Role.init) }
+    }
 }
 
 public struct Connector: Sendable, Decodable, Identifiable, Equatable {
