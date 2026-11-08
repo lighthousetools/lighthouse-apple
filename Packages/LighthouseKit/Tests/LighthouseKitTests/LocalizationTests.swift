@@ -3,6 +3,9 @@ import Testing
 
 @testable import LighthouseKit
 
+/// The language is global, and the app model sets it too, so these run with
+/// the server suites rather than beside them.
+extension ServerTests {
 @Suite(.serialized) struct LocalizationTests {
     @Test func textsFollowTheLanguageAndKeepArguments() {
         Lang.current = .german
@@ -47,4 +50,5 @@ import Testing
         }
         #expect(try Client.askEvent(ServerEvent(name: "other", data: "")) == nil)
     }
+}
 }

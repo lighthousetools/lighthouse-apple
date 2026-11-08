@@ -108,8 +108,16 @@ public enum ShellMessage: Equatable, Sendable {
     case dragZone(Bool)
     /// The web app dropped its token: it signed out or was refused.
     case signedOut
+    /// The web app holds another token, such as after it switched tenants.
+    /// The app adopts it only once the server confirms it.
+    case token(String)
     /// The language was changed in the web app.
     case language(Language)
+
+    /// A bearer token: printable ASCII without spaces, and of a sane length.
+    static func isToken(_ text: String) -> Bool {
+        (1...512).contains(text.utf8.count) && text.utf8.allSatisfy { (0x21...0x7E).contains($0) }
+    }
 
     public static func parse(_ body: Any) throws -> ShellMessage {
         guard let object = body as? [String: Any] else { throw BridgeError.notAnObject }
@@ -123,6 +131,10 @@ public enum ShellMessage: Equatable, Sendable {
             return .dragZone(active)
         case "signedOut":
             return .signedOut
+        case "token":
+            guard let value = object["value"] as? String else { throw BridgeError.missing("value") }
+            guard Self.isToken(value) else { throw BridgeError.invalid("value") }
+            return .token(value)
         case "language":
             guard let code = object["value"] as? String, let language = Language(rawValue: code) else {
                 throw BridgeError.invalid("value")

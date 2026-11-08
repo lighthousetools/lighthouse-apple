@@ -42,6 +42,8 @@ public final class AppModel {
     public private(set) var switching = false
     /// Grows with every new sign-in or tenant, so live connections start over.
     public private(set) var signInGeneration = 0
+    /// The email of the last sign-in, to fill in next time.
+    public private(set) var lastEmail: String
     /// The name this device gets in the list of signed-in devices.
     public var deviceName: String {
         didSet { defaults.set(deviceName, forKey: Self.deviceNameKey) }
@@ -52,6 +54,11 @@ public final class AppModel {
             defaults.set(language.rawValue, forKey: Self.languageKey)
         }
     }
+
+    /// Asks the Mac window for the token its web app holds. When the web app
+    /// switched tenants, it signs out the token it replaced, so a refused token
+    /// is first looked for there before the app signs out.
+    @ObservationIgnored public var currentWebToken: (@MainActor () async -> String?)?
 
     private let store: TokenStore
     private let defaults: UserDefaults
@@ -64,6 +71,7 @@ public final class AppModel {
     private static let languageKey = "language"
     private static let tokenKeyKey = "token-key"
     private static let deviceNameKey = "device-name"
+    private static let emailKey = "email"
 
     public init(
         store: TokenStore = KeychainTokenStore(), defaults: UserDefaults = .standard,
@@ -75,6 +83,7 @@ public final class AppModel {
         self.deviceKind = deviceKind
         self.deviceName = defaults.string(forKey: Self.deviceNameKey) ?? deviceName
         serverAddress = defaults.string(forKey: Self.addressKey) ?? ""
+        lastEmail = defaults.string(forKey: Self.emailKey) ?? ""
         let stored = defaults.string(forKey: Self.languageKey).flatMap(Language.init(rawValue:))
         language = stored ?? .system
         Lang.current = stored ?? .system
@@ -188,6 +197,10 @@ public final class AppModel {
             store.save(issued.token, for: key)
             serverAddress = url.absoluteString
             defaults.set(serverAddress, forKey: Self.addressKey)
+            if !email.isEmpty {
+                lastEmail = email
+                defaults.set(email, forKey: Self.emailKey)
+            }
             begin(token: issued.token, key: key)
             phase = .ready
             await refresh()
@@ -247,16 +260,31 @@ public final class AppModel {
 
     /// Takes over a token the web app of the Mac window got by itself, such as
     /// after it switched tenants, once the server confirms it.
-    public func adoptWebToken(_ webToken: String) async {
-        guard phase == .ready, webToken != token, let url = serverURL else { return }
+    @discardableResult
+    public func adoptWebToken(_ webToken: String) async -> Bool {
+        guard phase == .ready, webToken != token, let url = serverURL else { return false }
         guard let found = try? await Client(baseURL: url, token: webToken, session: session).me(),
             phase == .ready, webToken != token
-        else { return }
+        else { return false }
         let key = TokenKey(server: url.absoluteString, user: found.userId, tenant: found.tenantId)
         store.save(webToken, for: key)
         begin(token: webToken, key: key)
         me = found
         await refresh()
+        return true
+    }
+
+    /// The server refused the token: the web app may hold its successor,
+    /// otherwise the sign-in has ended.
+    private func tokenRefused() async {
+        let refused = token
+        if let webToken = await currentWebToken?(), webToken != refused, token == refused,
+            await adoptWebToken(webToken)
+        {
+            return
+        }
+        guard token == refused, phase == .ready else { return }
+        finishSignOut(ended: true)
     }
 
     /// Signs out of every tenant of this user on this server, and revokes the tokens.
@@ -313,7 +341,7 @@ public final class AppModel {
             lastError = nil
             errorCameFromRefresh = false
         } catch ClientError.unauthorized {
-            finishSignOut(ended: true)
+            await tokenRefused()
         } catch {
             lastError = error.localizedDescription
             errorCameFromRefresh = false
@@ -361,7 +389,7 @@ public final class AppModel {
             }
         } catch ClientError.unauthorized {
             guard generation == signInGeneration else { return }
-            finishSignOut(ended: true)
+            await tokenRefused()
         } catch {
             guard generation == signInGeneration else { return }
             lastError = error.localizedDescription

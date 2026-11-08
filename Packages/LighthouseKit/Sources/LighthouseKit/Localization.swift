@@ -258,4 +258,10 @@ let germanStrings: [String: String] = [
     "This server has several users. Enter your email address.":
         "Dieser Server hat mehrere Nutzer. Gib deine E-Mail-Adresse ein.",
     "Your sign-in has ended. Please sign in again.": "Deine Anmeldung ist abgelaufen. Bitte melde dich erneut an.",
+    "Email": "E-Mail",
+    "Name of this device": "Name dieses Geräts",
+    "New here?": "Neu hier?",
+    "Create an account in the web app": "Konto in der Web-App anlegen",
+    "Invited? Open the link in your invitation to set up your account, then sign in here.":
+        "Eingeladen? Öffne den Link in deiner Einladung, um dein Konto einzurichten, und melde dich dann hier an.",
 ]

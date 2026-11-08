@@ -14,6 +14,7 @@ extension ServerTests {
             defaults: UserDefaults = UserDefaults(suiteName: UUID().uuidString)!
         ) -> AppModel {
             defaults.set(server, forKey: "server-address")
+            defaults.set("en", forKey: "language")
             if let signedIn { defaults.set(signedIn.account, forKey: "token-key") }
             return AppModel(
                 store: store, defaults: defaults, session: FakeServer.session(routes),
@@ -41,6 +42,7 @@ extension ServerTests {
             let login = FakeServer.seen.first { $0.url?.path() == "/auth/login" }
             #expect(body(of: login)["email"] as? String == "alex@example.com")
             #expect(body(of: login)["device_name"] as? String == "Mac")
+            #expect(model.lastEmail == "alex@example.com")
         }
 
         @Test func aMissingEmailOnAServerWithSeveralUsersSaysSo() async {
@@ -186,6 +188,22 @@ extension ServerTests {
             #expect(model.tenantName == "Team")
         }
 
+        @Test func aRefusedTokenIsReplacedByTheOneTheWebAppSwitchedTo() async {
+            let store = MemoryStore()
+            store.tokens = [home: "lht_home"]
+            var routes = signedInRoutes
+            routes["GET /approvals Bearer lht_home"] = (401, #"{"error":"sign-in required"}"#)
+            routes["GET /me Bearer lht_home"] = (401, #"{"error":"sign-in required"}"#)
+            routes["GET /me Bearer lht_team"] = (200, meJSON(tenant: teamTenant, name: "Team"))
+            let model = model(routes, store: store, signedIn: home)
+            model.currentWebToken = { "lht_team" }
+            await model.refresh()
+            #expect(model.phase == .ready)
+            #expect(model.webToken == "lht_team")
+            #expect(model.tenantName == "Team")
+            #expect(model.lastError == nil)
+        }
+
         @Test func aTokenTheServerRefusesIsNotAdopted() async {
             let store = MemoryStore()
             store.tokens = [home: "lht_home"]
@@ -195,6 +213,15 @@ extension ServerTests {
             await model.adoptWebToken("lht_forged")
             #expect(model.webToken == "lht_home")
             #expect(store.tokens == [home: "lht_home"])
+        }
+
+        @Test func theStatusOfAServerTellsWhatTheSignInNeeds() async {
+            let routes = ["GET /auth/status": (200, #"{"setup_required":false,"signup":"open","email_required":true}"#)]
+            let model = model(routes, store: MemoryStore())
+            let status = await model.status(of: "lighthouse.test")
+            #expect(status?.emailRequired == true)
+            #expect(status?.signup == .open)
+            #expect(await model.status(of: "ftp://nope") == nil)
         }
 
         @Test func theDeviceNameCanBeChangedAndIsKept() {

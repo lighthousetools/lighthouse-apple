@@ -83,6 +83,15 @@ struct BridgeTests {
                 == .route(WebRoute(.brain, param: "42")))
         #expect(try ShellMessage.parse(["type": "dragZone", "active": true]) == .dragZone(true))
         #expect(try ShellMessage.parse(["type": "signedOut"]) == .signedOut)
+        #expect(try ShellMessage.parse(["type": "token", "value": "lht_abc"]) == .token("lht_abc"))
+        #expect(throws: BridgeError.missing("value")) { try ShellMessage.parse(["type": "token"]) }
+        #expect(throws: BridgeError.invalid("value")) { try ShellMessage.parse(["type": "token", "value": ""]) }
+        #expect(throws: BridgeError.invalid("value")) {
+            try ShellMessage.parse(["type": "token", "value": "lht abc"])
+        }
+        #expect(throws: BridgeError.invalid("value")) {
+            try ShellMessage.parse(["type": "token", "value": String(repeating: "a", count: 513)])
+        }
         #expect(try ShellMessage.parse(["type": "language", "value": "de"]) == .language(.german))
         #expect(throws: BridgeError.invalid("value")) {
             try ShellMessage.parse(["type": "language", "value": "fr"])
@@ -169,6 +178,12 @@ struct ShellScriptTests {
         #expect(script.contains(#"const origin = "https:\/\/lighthouse.example.com";"#))
         #expect(script.contains(#"if (location.origin !== origin) return;"#))
         #expect(script.contains(#"const language = "de";"#))
+    }
+
+    @Test func aTokenTheWebAppChangesIsReported() {
+        let script = ShellScript.documentStart(origin: "http://h", token: "t", language: .english)
+        #expect(script.contains(#"post({ type: "token", value: current })"#))
+        #expect(ShellScript.readToken.contains(#"localStorage.getItem("lighthouse.token")"#))
     }
 
     @Test func aMissingTokenStaysNull() {

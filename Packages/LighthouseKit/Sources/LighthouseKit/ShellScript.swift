@@ -46,6 +46,7 @@ public enum ShellScript {
           setInterval(() => {
             const current = read(\(literal(tokenKey)));
             if (lastToken !== null && current === null) post({ type: "signedOut" });
+            else if (current !== null && current !== lastToken) post({ type: "token", value: current });
             lastToken = current;
             const chosen = read(\(literal(languageKey)));
             if (chosen && chosen !== lastLanguage) {
@@ -116,6 +117,9 @@ public enum ShellScript {
             })();
             """
     }
+
+    /// Reads the token the web app holds now, as a string or null.
+    public static let readToken = "(() => { try { return localStorage.getItem(\(literal(tokenKey))); } catch { return null; } })();"
 
     /// Moves the web app to a route without reloading it.
     public static func navigate(_ route: WebRoute) -> String {
