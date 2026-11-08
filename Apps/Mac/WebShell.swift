@@ -29,6 +29,8 @@ final class WebShell: NSObject {
 
     @ObservationIgnored let webView: ShellWebView
     @ObservationIgnored var onSignedOut: () -> Void = {}
+    /// The web app holds another token, such as after it switched tenants.
+    @ObservationIgnored var onToken: (String) -> Void = { _ in }
     @ObservationIgnored var onLanguage: (Language) -> Void = { _ in }
     @ObservationIgnored var onNotify: (_ id: String, _ title: String, _ body: String, _ route: WebRoute?) -> Void = {
         _, _, _, _ in
@@ -99,6 +101,8 @@ final class WebShell: NSObject {
             return
         }
         if let current = self.server, current != server { defaults.removeObject(forKey: Self.routeKey) }
+        // Another token means another tenant or person, whose organizations differ.
+        if let previous = self.token, previous != token, !currentOrg.isEmpty { remember(org: "") }
         self.server = server
         self.token = token
         installScripts()
@@ -169,6 +173,13 @@ final class WebShell: NSObject {
         installScripts()
     }
 
+    /// The token the web app holds now, which may be newer than the app's own.
+    func currentWebToken() async -> String? {
+        guard server != nil, status == .ready else { return nil }
+        let value = try? await webView.evaluateJavaScript(ShellScript.readToken, in: nil, contentWorld: Self.world)
+        return value as? String
+    }
+
     /// Sends a command to the web app, such as opening its palette.
     func send(_ command: BridgeCommand) {
         guard status == .ready else { return }
@@ -237,6 +248,12 @@ final class WebShell: NSObject {
             webView.dragZoneActive = active
         case .signedOut:
             onSignedOut()
+        case .token(let value):
+            guard value != token else { return }
+            // The web app already uses it, so the page needs no reload.
+            token = value
+            installScripts()
+            onToken(value)
         case .language(let chosen):
             language = chosen
             onLanguage(chosen)

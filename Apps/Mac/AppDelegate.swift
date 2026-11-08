@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let navigator = Navigator()
     let shell = WebShell()
     private var tracker = RequestTracker()
+    /// The sign-in the tracker learned, so another tenant starts quiet.
+    private var trackedSession = ""
     private var askedForNotifications = false
     nonisolated private static let routeKey = "route"
 
@@ -34,6 +36,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             Task { await self.model.signOut() }
         }
+        shell.onToken = { [weak self] token in
+            guard let self else { return }
+            Task { await self.model.adoptWebToken(token) }
+        }
+        model.currentWebToken = { [weak self] in await self?.shell.currentWebToken() }
         shell.onLanguage = { [weak self] language in
             guard let self, self.model.language != language else { return }
             self.model.language = language
@@ -46,6 +53,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Looks for new requests after each refresh and announces them.
     func requestsChanged() {
+        if model.sessionID != trackedSession {
+            trackedSession = model.sessionID
+            tracker = RequestTracker()
+        }
         guard model.phase == .ready else {
             tracker = RequestTracker()
             return

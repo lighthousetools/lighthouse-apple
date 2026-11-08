@@ -62,7 +62,7 @@ struct MenuBarLabel: View {
             GlobalShortcut.shared.onPress = { navigator.showsCapture = true }
             GlobalShortcut.shared.register()
         }
-        .task(id: model.phase) {
+        .task(id: model.sessionID) {
             delegate.requestsChanged()
             if model.phase == .ready { await model.keepFresh() }
         }
@@ -145,7 +145,23 @@ struct LighthouseCommands: Commands {
                 }
             }
             Divider()
-            Button(tr("Change server…")) { Task { await model.signOut() } }
+            if let me = model.me {
+                Text(tr("Signed in as %@", me.email ?? me.name))
+                if model.tenants.count > 1 {
+                    Menu(tr("Switch team")) {
+                        ForEach(model.tenants) { tenant in
+                            Toggle(
+                                tenant.tenantName,
+                                isOn: Binding(
+                                    get: { model.me?.tenantId == tenant.tenantId },
+                                    set: { _ in Task { await model.switchTenant(to: tenant) } })
+                            )
+                        }
+                    }
+                    .disabled(model.switching)
+                }
+            }
+            Button(tr("Sign out")) { Task { await model.signOut() } }
                 .disabled(model.phase != .ready)
         }
     }

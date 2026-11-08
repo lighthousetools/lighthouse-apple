@@ -35,6 +35,8 @@ struct MainWindow: View {
         .onChange(of: model.phase) { configure() }
         .onChange(of: model.serverAddress) { configure() }
         .onChange(of: model.language) { configure() }
+        // A switch of tenant brings a new token, and the page loads with it.
+        .onChange(of: model.webToken) { configure() }
         .onChange(of: model.isConnected) { if model.isConnected { shell.serverIsBack() } }
     }
 
