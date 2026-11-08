@@ -27,6 +27,9 @@ final class FakeServer: URLProtocol, @unchecked Sendable {
         let key = "\(request.httpMethod ?? "") \(request.url?.path() ?? "")"
         let (status, body) = Self.lock.withLock {
             Self.seen.append(request)
+            // A route for one token wins over the route for all.
+            let auth = request.value(forHTTPHeaderField: "Authorization") ?? ""
+            if let answer = Self.routes["\(key) \(auth)"] { return answer }
             if key == "GET /me", Self.routes[key] == nil { return (200, #"{"name":"Alex"}"#) }
             return Self.routes[key] ?? (200, "[]")
         }
@@ -39,11 +42,18 @@ final class FakeServer: URLProtocol, @unchecked Sendable {
 }
 
 final class MemoryStore: TokenStore, @unchecked Sendable {
-    var token: String?
-    init(_ token: String? = nil) { self.token = token }
-    func load() -> String? { token }
-    func save(_ token: String) { self.token = token }
-    func clear() { token = nil }
+    var tokens: [TokenKey: String] = [:]
+    var legacy: String?
+    /// A store with the single token of an older build.
+    init(_ legacy: String? = nil) { self.legacy = legacy }
+    func load(_ key: TokenKey) -> String? { tokens[key] }
+    func save(_ token: String, for key: TokenKey) { tokens[key] = token }
+    func clear(_ key: TokenKey) { tokens[key] = nil }
+    func keys() -> [TokenKey] { Array(tokens.keys) }
+    func loadLegacy() -> String? { legacy }
+    func clearLegacy() { legacy = nil }
+    /// The only token, for tests with a single sign-in.
+    var token: String? { tokens.count == 1 ? tokens.values.first : nil }
 }
 
 let approvalJSON = """

@@ -251,4 +251,11 @@ let germanStrings: [String: String] = [
     "New task": "Neue Aufgabe",
     "What needs doing?": "Was ist zu tun?",
     "%@ critical alerts": "%@ kritische Alarme",
+    "That is not a valid server address.": "Das ist keine gültige Serveradresse.",
+    "Please sign in again.": "Bitte melde dich erneut an.",
+    "The server sent an unexpected answer.": "Der Server hat unerwartet geantwortet.",
+    "Only owners and admins of this team can do that.": "Das dürfen nur Eigentümer und Admins dieses Teams.",
+    "This server has several users. Enter your email address.":
+        "Dieser Server hat mehrere Nutzer. Gib deine E-Mail-Adresse ein.",
+    "Your sign-in has ended. Please sign in again.": "Deine Anmeldung ist abgelaufen. Bitte melde dich erneut an.",
 ]

@@ -11,11 +11,11 @@ public enum ClientError: Error, Equatable, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .invalidAddress: "That is not a valid server address."
-        case .unauthorized: "Please sign in again."
-        case .forbidden(let message): message
+        case .invalidAddress: tr("That is not a valid server address.")
+        case .unauthorized: tr("Please sign in again.")
+        case .forbidden(let message): tr(message)
         case .server(_, let message): message
-        case .unreadableAnswer: "The server sent an unexpected answer."
+        case .unreadableAnswer: tr("The server sent an unexpected answer.")
         }
     }
 }
