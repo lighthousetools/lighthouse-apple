@@ -6,7 +6,11 @@ you run yourself. Both connect to your own server.
 - **iOS:** today's overview, approvals, Claude Code sessions, agents, the Second Brain and settings.
 - **Mac:** the web app in a native window, so it looks exactly like in the browser, plus a menu bar item that shows what
   waits for you and answers permission requests, notifications for new requests even while the window is closed, and
-  native shortcuts. [docs/bridge.md](docs/bridge.md) describes how the window and the web app talk.
+  native shortcuts. The menu bar and the Lighthouse menu show who is signed in and switch between your teams.
+  [docs/bridge.md](docs/bridge.md) describes how the window and the web app talk.
+
+On a server with several users, sign in with your email and password; a server with a single user needs only the
+password. Accounts and invitations are created in the web app.
 
 Both speak German and English. Choose the language in Settings or on the sign-in screen.
 

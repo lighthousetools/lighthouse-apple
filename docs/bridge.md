@@ -134,15 +134,35 @@ Servers without `GET /ready` fall back to approvals and permission requests.
 
 ## Sign-in
 
-The app keeps the device token in the Keychain. Before any script of the page runs, a script of the app writes it to
-`localStorage["lighthouse.token"]`, together with the chosen language in `localStorage["lighthouse.language"]`. The web
-view stores nothing on disk, so the token is handed over again with each load. This script runs in a content world of its
-own: the page cannot see it or send its messages.
+The app signs in natively, with the server address, the email (only once the server has more than one user, as
+`GET /auth/status` tells), the password and a name for the device. It keeps one device token per server, user and
+tenant in the Keychain. Before any script of the page runs, a script of the app writes the token of the current tenant
+to `localStorage["lighthouse.token"]`, together with the chosen language in `localStorage["lighthouse.language"]`. The
+web view stores nothing on disk, so the token is handed over again with each load. This script runs in a content world
+of its own: the page cannot see it or send its messages.
 
 That script also writes the remembered organization to `localStorage["lighthouse.org"]`, and watches the token and
-language keys. When the web app removes the token, because the owner signed out or the server
-refused it, the app signs out as well and shows its native sign-in. A language chosen in the web app becomes the app's
-language.
+language keys:
+
+- When the web app removes the token, because the person signed out or the server refused it, the app signs out of
+  every tenant of that user on this server, revokes the kept tokens and shows its native sign-in.
+- When the web app holds another token, because it switched tenants itself, the app asks `GET /me` with it and adopts
+  it for the tenant `/me` names. The page keeps running. Since the web app signs out the token it replaced, a token the
+  server refuses is first looked for in the web app before the app signs out.
+- A language chosen in the web app becomes the app's language.
+
+Accounts are created in the web app: on a server with `signup = "open"` the sign-in links to `#/signup` in the
+browser, and with `signup = "invite"` it explains that the link of the invitation sets up the account.
+
+## Tenants
+
+The menu bar window and the **Lighthouse** menu name the signed-in person, the tenant and the role, and switch to the
+user's other tenants from `GET /tenants`. A switch reuses the token kept for that tenant while `GET /me` accepts it, and
+otherwise asks `POST /tenants/{id}/switch` for one. The token of the tenant left stays in the Keychain for the way back.
+The web app then loads anew with the new token, without the organization of the old tenant, and live updates and
+notifications start over, so what already waits in the new tenant is not announced as new.
+
+A request the role does not allow (403) shows the server's reason and keeps the sign-in.
 
 ## Window
 
