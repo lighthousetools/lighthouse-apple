@@ -46,6 +46,59 @@
             }
         }
 
+        private func roleName(_ role: Role) -> String {
+            switch role {
+            case .owner: tr("Owner")
+            case .admin: tr("Admin")
+            case .member: tr("Member")
+            }
+        }
+
+        /// Who is signed in and in which tenant, with a switch to the others.
+        @ViewBuilder private var account: some View {
+            if let me = model.me {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(me.name).font(Theme.body(13, weight: .medium)).foregroundStyle(Theme.ink)
+                        if let email = me.email, email != me.name {
+                            Text(email).font(Theme.body(12)).foregroundStyle(Theme.ink3).lineLimit(1)
+                        }
+                    }
+                    if let tenant = model.tenantName {
+                        HStack(spacing: 4) {
+                            if model.tenants.count > 1 {
+                                Menu {
+                                    ForEach(model.tenants) { other in
+                                        Button {
+                                            Task { await model.switchTenant(to: other) }
+                                        } label: {
+                                            if other.tenantId == me.tenantId {
+                                                Label(other.tenantName, systemImage: "checkmark")
+                                            } else {
+                                                Text(other.tenantName)
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    Text(tenant)
+                                }
+                                .menuStyle(.borderlessButton)
+                                .fixedSize()
+                                .disabled(model.switching)
+                                .help(tr("Switch team"))
+                            } else {
+                                Text(tenant).font(Theme.body(12.5)).foregroundStyle(Theme.ink2)
+                            }
+                            if let role = model.role {
+                                Text(roleName(role)).font(Theme.body(11.5)).foregroundStyle(Theme.ink3)
+                            }
+                            if model.switching { ProgressView().controlSize(.mini) }
+                        }
+                    }
+                }
+            }
+        }
+
         private func request(_ permission: Permission) -> some View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(tr("%@ wants to run", permission.project))
@@ -131,6 +184,7 @@
                 if model.phase != .ready {
                     Text(tr("Sign in in the main window.")).font(Theme.body(13)).foregroundStyle(Theme.ink2)
                 } else {
+                    account
                     Divider().overlay(Theme.line)
                     if model.pendingCount == 0 && model.waitingSessions.isEmpty && model.criticalAlerts.isEmpty {
                         line(Theme.ok, tr("All quiet"), "")
@@ -157,6 +211,13 @@
                         .font(Theme.body(13, weight: .medium))
                         .foregroundStyle(Theme.lampInk)
                     Spacer()
+                    if model.phase == .ready {
+                        Button(tr("Sign out")) { Task { await model.signOut() } }
+                            .buttonStyle(.plain)
+                            .font(Theme.body(13))
+                            .foregroundStyle(Theme.ink3)
+                            .padding(.trailing, 8)
+                    }
                     Button(tr("Quit")) { NSApplication.shared.terminate(nil) }
                         .buttonStyle(.plain)
                         .font(Theme.body(13))

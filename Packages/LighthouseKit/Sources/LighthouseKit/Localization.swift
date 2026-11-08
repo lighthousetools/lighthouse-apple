@@ -264,4 +264,9 @@ let germanStrings: [String: String] = [
     "Create an account in the web app": "Konto in der Web-App anlegen",
     "Invited? Open the link in your invitation to set up your account, then sign in here.":
         "Eingeladen? Öffne den Link in deiner Einladung, um dein Konto einzurichten, und melde dich dann hier an.",
+    "Owner": "Eigentümer",
+    "Admin": "Admin",
+    "Member": "Mitglied",
+    "Switch team": "Team wechseln",
+    "Signed in as %@": "Angemeldet als %@",
 ]
