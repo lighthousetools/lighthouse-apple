@@ -150,34 +150,18 @@ struct QuietButtonStyle: ButtonStyle {
     }
 }
 
-/// The lighthouse mark.
+/// The mark: a lightning bolt.
 struct LogoMark: View {
     var size: CGFloat = 20
 
     var body: some View {
         Canvas { context, canvas in
             let unit = canvas.width / 24
-            var tower = Path()
-            tower.move(to: CGPoint(x: 9.5 * unit, y: 21 * unit))
-            tower.addLine(to: CGPoint(x: 14.5 * unit, y: 21 * unit))
-            tower.addLine(to: CGPoint(x: 13.5 * unit, y: 9 * unit))
-            tower.addLine(to: CGPoint(x: 10.5 * unit, y: 9 * unit))
-            tower.closeSubpath()
-            context.fill(tower, with: .color(Theme.ink))
-            var roof = Path()
-            roof.move(to: CGPoint(x: 12 * unit, y: 3 * unit))
-            roof.addLine(to: CGPoint(x: 15 * unit, y: 6 * unit))
-            roof.addLine(to: CGPoint(x: 9 * unit, y: 6 * unit))
-            roof.closeSubpath()
-            context.fill(roof, with: .color(Theme.ink))
-            let lamp = CGRect(x: 10 * unit, y: 6.5 * unit, width: 4 * unit, height: 2 * unit)
-            context.fill(Path(lamp), with: .color(Theme.lamp))
-            for (from, to) in [(7.5, 4.0), (16.5, 20.0)] {
-                var beam = Path()
-                beam.move(to: CGPoint(x: from * unit, y: 7.5 * unit))
-                beam.addLine(to: CGPoint(x: to * unit, y: 7.5 * unit))
-                context.stroke(beam, with: .color(Theme.lamp), lineWidth: 1.5 * unit)
-            }
+            let points: [(CGFloat, CGFloat)] = [(15.6, 2), (7.8, 13.6), (11.8, 13.6), (9.6, 22), (16.6, 10), (12.8, 10)]
+            var bolt = Path()
+            bolt.addLines(points.map { CGPoint(x: $0.0 * unit, y: $0.1 * unit) })
+            bolt.closeSubpath()
+            context.fill(bolt, with: .color(Theme.ink))
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
